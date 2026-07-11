@@ -1,0 +1,510 @@
+"""
+Neo4j implementation of the GraphStore protocol.
+"""
+from __future__ import annotations
+
+import logging
+from typing import Any
+
+from neo4j import GraphDatabase
+
+from threadline.models import (
+    ActionItem,
+    ActionItemStatus,
+    ConflictRecord,
+    Decision,
+    DecisionStatus,
+    EdgeType,
+    Entity,
+    EntityType,
+    ExtractionResult,
+    GraphEdge,
+    GraphNode,
+    GraphSnapshot,
+    MeetingTranscript,
+    NodeType,
+    SupersessionRecord,
+    Topic,
+    _make_id,
+)
+
+logger = logging.getLogger(__name__)
+
+class Neo4jGraphStore:
+    def __init__(self, uri: str, user: str, password: str) -> None:
+        self.uri = uri
+        self.user = user
+        self.password = password
+        self.driver = GraphDatabase.driver(uri, auth=(user, password))
+
+    def verify_connectivity(self) -> None:
+        self.driver.verify_connectivity()
+
+    def close(self) -> None:
+        self.driver.close()
+
+    def upsert_result(
+        self, transcript: MeetingTranscript, result: ExtractionResult
+    ) -> dict[str, Any]:
+        meeting_id = transcript.id
+
+        # We will perform the operations in a single transaction or multiple.
+        # Running inside a write transaction ensures consistency.
+        with self.driver.session() as session:
+            stats = session.execute_write(self._write_tx, transcript, result)
+        return stats
+
+    def _write_tx(self, tx: Any, transcript: MeetingTranscript, result: ExtractionResult) -> dict[str, Any]:
+        meeting_id = transcript.id
+        
+        # 1. Merge Meeting node
+        tx.run(
+            """
+            MERGE (m:Meeting {id: $id})
+            ON CREATE SET m.source_file = $source_file,
+                          m.text = $text,
+                          m.meeting_title = $meeting_title,
+                          m.recorded_at = $recorded_at
+            ON MATCH SET m.source_file = $source_file,
+                         m.text = $text,
+                         m.meeting_title = $meeting_title
+            """,
+            id=meeting_id,
+            source_file=transcript.source_file,
+            text=transcript.text,
+            meeting_title=transcript.meeting_title or meeting_id,
+            recorded_at=transcript.recorded_at.isoformat() if transcript.recorded_at else None,
+        )
+
+        new_nodes = 0
+        new_edges = 0
+        supersessions_applied = 0
+
+        # ── Decisions ────────────────────────────────────────────────────────
+        for d in result.decisions:
+            # Check if decision already exists
+            res = tx.run("MATCH (d:Decision {id: $id}) RETURN d", id=d.id)
+            if not res.peek():
+                new_nodes += 1
+            
+            tx.run(
+                """
+                MERGE (d:Decision {id: $id})
+                SET d.text = $text,
+                    d.status = $status,
+                    d.rationale = $rationale,
+                    d.owner = $owner,
+                    d.source_meeting_id = $source_meeting_id
+                """,
+                id=d.id,
+                text=d.text,
+                status=d.status.value,
+                rationale=d.rationale,
+                owner=d.owner,
+                source_meeting_id=d.source_meeting_id,
+            )
+
+            # Edge: Decision ──MENTIONED_IN──► Meeting
+            res_edge = tx.run(
+                """
+                MATCH (d:Decision {id: $d_id}), (m:Meeting {id: $m_id})
+                MERGE (d)-[r:MENTIONED_IN]->(m)
+                ON CREATE SET r.superseded = false
+                RETURN r
+                """,
+                d_id=d.id,
+                m_id=meeting_id,
+            )
+            if res_edge.consume().counters.relationships_created > 0:
+                new_edges += 1
+
+        # ── Prior Decision Updates (status mutations) ─────────────────────────
+        for pu in result.prior_decision_updates:
+            tx.run(
+                """
+                MATCH (d:Decision {id: $id})
+                SET d.status = $new_status
+                """,
+                id=pu.decision_id,
+                new_status=pu.new_status.value,
+            )
+
+        # ── Supersessions ────────────────────────────────────────────────────
+        for s in result.supersessions:
+            # Create SUPERSEDES relationship
+            # Edge: new ──SUPERSEDES──► old (superseded = true)
+            res_edge = tx.run(
+                """
+                MATCH (new:Decision {id: $new_id}), (old:Decision {id: $old_id})
+                MERGE (new)-[r:SUPERSEDES]->(old)
+                SET r.superseded = true, r.reason = $reason, r.meeting_id = $meeting_id
+                RETURN r
+                """,
+                new_id=s.new_decision_id,
+                old_id=s.old_decision_id,
+                reason=s.reason,
+                meeting_id=s.meeting_id,
+            )
+            if res_edge.consume().counters.relationships_created > 0:
+                new_edges += 1
+                supersessions_applied += 1
+
+        # ── Action Items ──────────────────────────────────────────────────────
+        for ai in result.action_items:
+            res = tx.run("MATCH (a:ActionItem {id: $id}) RETURN a", id=ai.id)
+            if not res.peek():
+                new_nodes += 1
+            
+            tx.run(
+                """
+                MERGE (a:ActionItem {id: $id})
+                SET a.text = $text,
+                    a.assignee = $assignee,
+                    a.due_date = $due_date,
+                    a.status = $status,
+                    a.source_meeting_id = $source_meeting_id
+                """,
+                id=ai.id,
+                text=ai.text,
+                assignee=ai.assignee,
+                due_date=ai.due_date,
+                status=ai.status.value,
+                source_meeting_id=ai.source_meeting_id,
+            )
+
+            # Edge: ActionItem ──MENTIONED_IN──► Meeting
+            res_edge = tx.run(
+                """
+                MATCH (a:ActionItem {id: $a_id}), (m:Meeting {id: $m_id})
+                MERGE (a)-[r:MENTIONED_IN]->(m)
+                ON CREATE SET r.superseded = false
+                RETURN r
+                """,
+                a_id=ai.id,
+                m_id=meeting_id,
+            )
+            if res_edge.consume().counters.relationships_created > 0:
+                new_edges += 1
+
+        # ── Entities ──────────────────────────────────────────────────────────
+        for e in result.entities:
+            # We construct a deterministic ID for entities based on name if they don't have one
+            entity_id = e.id or f"ent_{e.name.lower().replace(' ', '_')}"
+            res = tx.run("MATCH (en:Entity {id: $id}) RETURN en", id=entity_id)
+            if not res.peek():
+                new_nodes += 1
+            
+            tx.run(
+                """
+                MERGE (en:Entity {id: $id})
+                SET en.name = $name,
+                    en.entity_type = $entity_type
+                """,
+                id=entity_id,
+                name=e.name,
+                entity_type=e.entity_type.value,
+            )
+
+            # Link Entity to Meeting
+            res_edge = tx.run(
+                """
+                MATCH (en:Entity {id: $en_id}), (m:Meeting {id: $m_id})
+                MERGE (en)-[r:MENTIONED_IN]->(m)
+                ON CREATE SET r.superseded = false
+                RETURN r
+                """,
+                en_id=entity_id,
+                m_id=meeting_id,
+            )
+            if res_edge.consume().counters.relationships_created > 0:
+                new_edges += 1
+
+        # ── Topics ────────────────────────────────────────────────────────────
+        for t in result.topics:
+            topic_id = t.id or f"topic_{t.name.lower().replace(' ', '_')}"
+            res = tx.run("MATCH (tp:Topic {id: $id}) RETURN tp", id=topic_id)
+            if not res.peek():
+                new_nodes += 1
+            
+            tx.run(
+                """
+                MERGE (tp:Topic {id: $id})
+                SET tp.name = $name
+                """,
+                id=topic_id,
+                name=t.name,
+            )
+
+            # Link Topic to Meeting
+            res_edge = tx.run(
+                """
+                MATCH (tp:Topic {id: $tp_id}), (m:Meeting {id: $m_id})
+                MERGE (tp)-[r:MENTIONED_IN]->(m)
+                ON CREATE SET r.superseded = false
+                RETURN r
+                """,
+                tp_id=topic_id,
+                m_id=meeting_id,
+            )
+            if res_edge.consume().counters.relationships_created > 0:
+                new_edges += 1
+
+        # ── Conflicts ─────────────────────────────────────────────────────────
+        for c in result.new_conflicts:
+            # Merge Conflict Node
+            res_c = tx.run("MATCH (cf:Conflict {id: $id}) RETURN cf", id=c.id)
+            if not res_c.peek():
+                new_nodes += 1
+
+            tx.run(
+                """
+                MERGE (cf:Conflict {id: $id})
+                SET cf.description = $description,
+                    cf.resolved = $resolved,
+                    cf.fact_a_id = $fact_a_id,
+                    cf.fact_b_id = $fact_b_id,
+                    cf.meeting_a_id = $meeting_a_id,
+                    cf.meeting_b_id = $meeting_b_id,
+                    cf.resolution_meeting_id = $resolution_meeting_id
+                """,
+                id=c.id,
+                description=c.description,
+                resolved=c.resolved,
+                fact_a_id=c.fact_a_id,
+                fact_b_id=c.fact_b_id,
+                meeting_a_id=c.meeting_a_id,
+                meeting_b_id=c.meeting_b_id,
+                resolution_meeting_id=c.resolution_meeting_id,
+            )
+
+            if c.resolved:
+                # Edge: meeting ──RESOLVES──► conflict
+                res_edge = tx.run(
+                    """
+                    MATCH (m:Meeting {id: $m_id}), (cf:Conflict {id: $c_id})
+                    MERGE (m)-[r:RESOLVES]->(cf)
+                    ON CREATE SET r.superseded = false
+                    RETURN r
+                    """,
+                    m_id=meeting_id,
+                    c_id=c.id,
+                )
+                if res_edge.consume().counters.relationships_created > 0:
+                    new_edges += 1
+            else:
+                # Edge: fact_b ──CONTRADICTS──► fact_a
+                # In Neo4j, we can link Decision node or Meeting node as representational
+                res_edge = tx.run(
+                    """
+                    MATCH (fb:Decision {id: $fb_id}), (fa:Decision {id: $fa_id})
+                    MERGE (fb)-[r:CONTRADICTS]->(fa)
+                    ON CREATE SET r.superseded = false
+                    RETURN r
+                    """,
+                    fb_id=c.fact_b_id if c.fact_b_id.startswith("dec") else meeting_id,
+                    fa_id=c.fact_a_id,
+                )
+                if res_edge.consume().counters.relationships_created > 0:
+                    new_edges += 1
+
+        # Fetch current decision count and conflict count in this session
+        res_dec = tx.run("MATCH (d:Decision) RETURN count(d) as total_decisions")
+        total_decisions = res_dec.single()["total_decisions"]
+
+        res_cf = tx.run("MATCH (cf:Conflict) RETURN count(cf) as total_conflicts")
+        total_conflicts = res_cf.single()["total_conflicts"]
+
+        summary = {
+            "new_nodes": new_nodes,
+            "new_edges": new_edges,
+            "supersessions_applied": supersessions_applied,
+            "total_decisions": total_decisions,
+            "total_conflicts": total_conflicts,
+        }
+        summary["summary"] = (
+            f"{new_nodes} new nodes, {new_edges} new edges"
+            + (f", {supersessions_applied} supersession(s)" if supersessions_applied else "")
+        )
+        return summary
+
+    # ── Read methods ──────────────────────────────────────────────────────────
+
+    def get_all_decisions(self) -> list[Decision]:
+        with self.driver.session() as session:
+            res = session.run("MATCH (d:Decision) RETURN d")
+            decisions = []
+            for record in res:
+                node = record["d"]
+                decisions.append(Decision(
+                    id=node["id"],
+                    text=node["text"],
+                    status=DecisionStatus(node["status"]),
+                    rationale=node.get("rationale"),
+                    owner=node.get("owner"),
+                    source_meeting_id=node["source_meeting_id"],
+                ))
+            return decisions
+
+    def get_all_action_items(self) -> list[ActionItem]:
+        with self.driver.session() as session:
+            res = session.run("MATCH (a:ActionItem) RETURN a")
+            items = []
+            for record in res:
+                node = record["a"]
+                items.append(ActionItem(
+                    id=node["id"],
+                    text=node["text"],
+                    assignee=node.get("assignee"),
+                    due_date=node.get("due_date"),
+                    status=ActionItemStatus(node["status"]),
+                    source_meeting_id=node["source_meeting_id"],
+                ))
+            return items
+
+    def get_all_conflicts(self) -> list[ConflictRecord]:
+        with self.driver.session() as session:
+            res = session.run("MATCH (cf:Conflict) RETURN cf")
+            conflicts = []
+            for record in res:
+                node = record["cf"]
+                conflicts.append(ConflictRecord(
+                    id=node["id"],
+                    fact_a_id=node["fact_a_id"],
+                    fact_b_id=node["fact_b_id"],
+                    fact_a_text=node.get("fact_a_text", ""), # or query node_a
+                    fact_b_text=node.get("fact_b_text", ""),
+                    description=node["description"],
+                    meeting_a_id=node["meeting_a_id"],
+                    meeting_b_id=node["meeting_b_id"],
+                    resolved=node["resolved"],
+                    resolution_meeting_id=node.get("resolution_meeting_id"),
+                ))
+            return conflicts
+
+    def get_all_topics(self) -> list[str]:
+        with self.driver.session() as session:
+            res = session.run("MATCH (t:Topic) RETURN t.name as name")
+            return sorted({record["name"] for record in res})
+
+    def get_meeting_count(self) -> int:
+        with self.driver.session() as session:
+            res = session.run("MATCH (m:Meeting) RETURN count(m) as count")
+            return res.single()["count"]
+
+    def get_graph_snapshot(self) -> GraphSnapshot:
+        with self.driver.session() as session:
+            # Query all nodes
+            res_nodes = session.run(
+                """
+                MATCH (n)
+                RETURN id(n) as internal_id, labels(n) as labels, properties(n) as props
+                """
+            )
+            nodes = []
+            for rec in res_nodes:
+                labels = rec["labels"]
+                props = rec["props"]
+                node_id = props.get("id")
+                if not node_id:
+                    continue
+                
+                # Determine type
+                label = ""
+                ntype = NodeType.meeting
+                if "Meeting" in labels:
+                    ntype = NodeType.meeting
+                    label = props.get("meeting_title", node_id)
+                elif "Decision" in labels:
+                    ntype = NodeType.decision
+                    label = props.get("text", "")[:60]
+                elif "ActionItem" in labels:
+                    ntype = NodeType.action_item
+                    label = props.get("text", "")[:60]
+                elif "Entity" in labels:
+                    ntype = NodeType.entity
+                    label = props.get("name", "")
+                elif "Topic" in labels:
+                    ntype = NodeType.topic
+                    label = props.get("name", "")
+                elif "Conflict" in labels:
+                    # Treat conflict nodes if necessary or skip
+                    continue
+                
+                nodes.append(GraphNode(
+                    id=node_id,
+                    label=label,
+                    type=ntype,
+                    properties=dict(props),
+                ))
+
+            # Build a set of exported node IDs so we can drop dangling edges
+            # (e.g. edges that touch Conflict nodes, which are excluded above).
+            exported_ids: set[str] = {n.id for n in nodes}
+
+            # Query all relationships — exclude Conflict nodes at both ends so we
+            # never return an edge whose endpoint was skipped in the nodes query.
+            res_edges = session.run(
+                """
+                MATCH (a)-[r]->(b)
+                WHERE NOT 'Conflict' IN labels(a)
+                  AND NOT 'Conflict' IN labels(b)
+                RETURN a.id as src, b.id as tgt, type(r) as type,
+                       r.superseded as superseded, properties(r) as props
+                """
+            )
+            edges = []
+            for rec in res_edges:
+                src = rec["src"]
+                tgt = rec["tgt"]
+                if not src or not tgt:
+                    continue
+                # Belt-and-suspenders: skip any edge whose endpoint isn't in the
+                # exported nodes set (handles any other skipped label types).
+                if src not in exported_ids or tgt not in exported_ids:
+                    continue
+
+                etype_str = rec["type"]
+                # Map string to EdgeType enum safely
+                try:
+                    etype = EdgeType(etype_str)
+                except ValueError:
+                    continue
+
+                superseded = bool(rec.get("superseded", False))
+                edges.append(GraphEdge(
+                    source=src,
+                    target=tgt,
+                    type=etype,
+                    superseded=superseded,
+                    properties=dict(rec.get("props") or {}),
+                ))
+
+            return GraphSnapshot(nodes=nodes, edges=edges)
+
+    def get_status(self) -> dict[str, Any]:
+        try:
+            self.verify_connectivity()
+            with self.driver.session() as session:
+                res_nodes = session.run("MATCH (n) RETURN count(n) as count")
+                node_count = res_nodes.single()["count"]
+                res_edges = session.run("MATCH ()-[r]->() RETURN count(r) as count")
+                edge_count = res_edges.single()["count"]
+                res_dec = session.run("MATCH (d:Decision) RETURN count(d) as count")
+                decision_count = res_dec.single()["count"]
+                res_cf = session.run("MATCH (c:Conflict) RETURN count(c) as count")
+                conflict_count = res_cf.single()["count"]
+            return {
+                "connected": True,
+                "backend": "neo4j",
+                "node_count": node_count,
+                "edge_count": edge_count,
+                "decision_count": decision_count,
+                "conflict_count": conflict_count,
+            }
+        except Exception as e:
+            logger.error("Neo4j health check failed: %s", e)
+            return {
+                "connected": False,
+                "backend": "neo4j",
+                "error": str(e),
+            }
