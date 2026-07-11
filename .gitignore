@@ -1,0 +1,19 @@
+# Python build & caches
+**/__pycache__/
+**/*.pyc
+.pytest_cache/
+threadline.egg-info/
+
+# Environment
+.env
+
+# Test outputs and log files
+server.log
+test_output.txt
+demo_run_results.txt
+demo_unbuffered_results.txt
+
+# Node / Frontend
+frontend/node_modules/
+frontend/dist/
+frontend/.env
