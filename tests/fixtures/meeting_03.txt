@@ -1,0 +1,48 @@
+[TRANSCRIPT — Project Nexus Architecture Review]
+[2024-05-06 11:00 AM | Attendees: Sarah Chen (PM), Dev Rao (Eng Lead), Lena Hoffmann (Backend), Raj Patel (Security Consultant, external)]
+
+Sarah: So Raj is joining us today because Marcus asked him to do an independent security review before we go into final sprint. Raj, I'll let you take it away.
+
+Raj: Thanks Sarah. So I've reviewed the architecture doc and I have a few notes but the big one I want to address first is the authentication provider choice.
+
+Dev: Auth0?
+
+Raj: Auth0, yes. So I've used Auth0 extensively and it's a fine product but I want to flag something specific to your situation. You have GDPR obligations, your data is in EU region—correct?
+
+Lena: Yes, MongoDB Atlas eu-west-1.
+
+Raj: Right. But Auth0's data residency guarantees for the enterprise tier have some carve-outs. Specifically, telemetry and analytics data can route through US infrastructure unless you're on the Private Cloud deployment, which is a significantly higher cost tier.
+
+Dev: We didn't know that.
+
+Raj: Most people don't. My recommendation is that you either move to Auth0 Private Cloud, or you consider switching to Keycloak which you'd self-host in your eu-west-1 environment, or Cognito with the right configuration.
+
+Sarah: This is... not great timing.
+
+Dev: Yeah, I mean—I hear Raj, but we're six weeks from launch. Switching auth providers at this point is a significant risk.
+
+Raj: I understand the timeline pressure. I'm not saying you must switch, I'm saying you need to make an informed decision. If GDPR compliance is hard requirement, Auth0 standard tier may not be sufficient.
+
+Lena: What's the cost delta for Auth0 Private Cloud?
+
+Raj: I don't have exact numbers but you're looking at five to ten X the standard enterprise cost.
+
+Sarah: That's going to be a Marcus conversation. Okay, so we have a conflict here between our kickoff decision on Auth0 and what Raj is flagging about GDPR compliance. I'm not going to make this call today, I need Marcus on the call.
+
+Dev: Agreed.
+
+Sarah: Action item: I'll schedule a Marcus + Raj call for this week. In the meantime, Dev, can you do a quick assessment of what a Keycloak migration would look like, just so we have numbers?
+
+Dev: Yeah I can have a rough estimate by Wednesday.
+
+Raj: I can send you a migration guide we used at a previous client, it's not exact but it'll help scope it.
+
+Dev: That would be great, thanks.
+
+Sarah: Okay. So the Auth0 decision is—I'd call it "under review." It's not reversed but it's not confirmed either. Raj, anything else critical?
+
+Raj: The other items are minor. API rate limiting, input validation—I'll put them in my written report.
+
+Sarah: Great, send that to me. Okay I think that's the meeting. To summarize: Auth0 GDPR compliance flagged as potential issue by security consultant, decision under review pending Marcus input, Dev to scope Keycloak migration by Wednesday, Raj to send migration guide.
+
+[END OF TRANSCRIPT]

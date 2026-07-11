@@ -1,0 +1,50 @@
+[TRANSCRIPT — Project Nexus Auth Decision + Go/No-Go]
+[2024-05-14 3:00 PM | Attendees: Sarah Chen (PM), Dev Rao (Eng Lead), Lena Hoffmann (Backend), Marcus Webb (Stakeholder), Raj Patel (Security, external)]
+
+Marcus: Okay I read Raj's report, I had a call with our legal team, and I've reviewed Dev's Keycloak estimate. Let me just be direct: we're switching to Keycloak.
+
+Sarah: Okay.
+
+Marcus: Auth0 standard doesn't meet our GDPR obligations, Private Cloud is too expensive, and Dev's estimate says Keycloak migration is four days of work. That's acceptable given the timeline.
+
+Dev: I can start today. I have the guide Raj sent and I have a clear plan.
+
+Lena: I can help on the backend integration side.
+
+Marcus: Good. Raj, anything you need from us?
+
+Raj: Just make sure the Keycloak instance is in the same VPC as your MongoDB Atlas cluster. I'll do a spot check review once it's set up.
+
+Marcus: Dev, you own this. What's the delivery date?
+
+Dev: I can have Keycloak running in the dev environment by Thursday, production-ready by May 20th.
+
+Marcus: May 20th. That's the date. If that slips we have a problem.
+
+Dev: It won't slip.
+
+Sarah: Okay. So Auth0 is officially out. Keycloak is in. Dev owns delivery by May 20th, Raj does a security spot check after. The June 30 launch date is still intact?
+
+Dev: Yes. This pushes the auth integration work but we had buffer. June 30 is safe.
+
+Marcus: Good. Anything else blocking launch?
+
+Lena: The MongoDB Atlas cluster is up and running, schema is finalized. No blockers from my side.
+
+Priya: [joined late] Sorry—just catching the end. Are we still on June 30?
+
+Sarah: Yes. And we've switched auth from Auth0 to Keycloak.
+
+Priya: Oh wow. Does that change the login UI?
+
+Dev: Slightly, Keycloak has its own hosted login page but we can theme it. I'll send you a mockup this week.
+
+Priya: Okay, I'll need that by Tuesday at the latest.
+
+Dev: Monday.
+
+Sarah: Great. Final status: stack is React, FastAPI, MongoDB Atlas. Auth is Keycloak. Launch date June 30, non-negotiable. All major decisions are now locked. Please let's not change anything else.
+
+Marcus: Agreed.
+
+[END OF TRANSCRIPT]

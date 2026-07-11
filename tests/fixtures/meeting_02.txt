@@ -1,0 +1,64 @@
+[TRANSCRIPT — Project Nexus Sprint 3 Review]
+[2024-04-11 2:15 PM | Attendees: Sarah Chen (PM), Dev Rao (Eng Lead), Priya Nair (Design), Lena Hoffmann (New Backend Eng)]
+
+Sarah: Alright, let's get going. Dev you want to start with the sprint summary?
+
+Dev: Yeah. So we're mostly on track but I want to flag something that came up this week around the database choice.
+
+Sarah: Oh, what's going on?
+
+Dev: So Lena joined last week—Lena, you want to introduce yourself quickly?
+
+Lena: Sure! I'm Lena, I'm joining as backend engineer. Been working with distributed systems for about five years, most recently at—
+
+Sarah: Great to have you Lena.
+
+Lena: Thanks.
+
+Dev: So Lena looked at our data model and she flagged that we have a lot of hierarchical relational data and she made a good point that Postgres is going to get painful once we're dealing with, like, nested project structures and user permissions trees. She's recommending we consider switching to a document store.
+
+Sarah: This late in the project?
+
+Dev: I know, I know. But we've only written—honestly we've only written like 15% of the backend at this point, the migration cost is low right now, it'll only get worse.
+
+Lena: Yeah and I've done this migration before under pressure, it's not fun. Now is the right time if we're going to do it.
+
+Sarah: What are you recommending, specifically?
+
+Lena: MongoDB. It maps cleanly onto our data model and we can use Atlas for hosting which handles the EU region requirement.
+
+Dev: I agree with the recommendation actually. I went back and forth on this and I think she's right.
+
+Sarah: Okay. So we're changing from Postgres to MongoDB. That's a big reversal from the kickoff.
+
+Dev: It is, and I want to be transparent that I got the original call wrong. The data model evolved and MongoDB is the better fit.
+
+Sarah: Marcus isn't on this call but I'll loop him in. I don't think he'll object, he just cares about the June 30 date and the EU data thing. MongoDB Atlas covers the EU?
+
+Lena: Yes, eu-west-1 on Atlas.
+
+Sarah: Good. Okay let's make that the decision. Postgres is out, MongoDB is in. Lena, can you set up the Atlas cluster and update the schema docs?
+
+Lena: I'll have it done by end of week.
+
+Sarah: That's an action item: Lena, Atlas cluster setup by April 14th. Dev, can you update the README and the architecture doc?
+
+Dev: Yeah I'll do that Friday.
+
+Sarah: Also—Priya, where are we on the wireframes?
+
+Priya: So I delivered the wireframes on March 18th as planned, but we've had like four rounds of revisions because the requirements keep shifting a bit. I want to flag that if the backend changes keep cascading into UI changes I'm going to need more time.
+
+Sarah: Understood. Dev, try to freeze the data model before end of this sprint so Priya isn't chasing a moving target.
+
+Dev: Yeah agreed, I'll freeze it by Friday.
+
+Sarah: Okay. Any other blockers before we close?
+
+Lena: One thing—has the Auth0 contract been confirmed? I want to make sure we're not going to hit a wall there.
+
+Dev: Auth0 is confirmed, we have the enterprise plan. That decision stands.
+
+Sarah: Yep, Auth0 is locked. Okay I think we're good. Decisions today: Postgres replaced by MongoDB Atlas, Dev to update architecture docs by Friday, Lena to set up Atlas cluster by April 14th.
+
+[END OF TRANSCRIPT]

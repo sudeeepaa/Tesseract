@@ -1,0 +1,66 @@
+[TRANSCRIPT — Project Nexus Kickoff Call]
+[2024-03-04 10:02 AM | Attendees: Sarah Chen (PM), Dev Rao (Eng Lead), Priya Nair (Design), Marcus Webb (Stakeholder)]
+
+Sarah: Okay I think everyone's on, uh, Dev can you hear us okay?
+
+Dev: Yeah yeah I'm here, sorry I was muted.
+
+Sarah: No worries. So, Marcus wanted to kick off the Nexus project today and—Marcus, do you want to set the stage?
+
+Marcus: Sure. So the board has approved the budget and we need to ship the first version by end of Q2. That's non-negotiable, so everything else we decide today needs to work backwards from that.
+
+Dev: End of Q2 meaning June 30th specifically or—
+
+Marcus: June 30. Yes.
+
+Dev: Okay. That's tight but we can make it work if we scope correctly.
+
+Sarah: Right so the first thing I want to land is the tech stack decision. Dev, you had a recommendation?
+
+Dev: Yeah so I've been going back and forth but I think we go with React on the frontend, FastAPI on the backend, Postgres for primary storage. That's my recommendation.
+
+Priya: What about the mobile side, are we doing—I thought there was talk of a React Native wrapper?
+
+Dev: I—honestly I'd deprioritize that for V1. Let's get a solid web app out first.
+
+Marcus: Agreed, mobile can be V2.
+
+Sarah: Okay so that's decided. React, FastAPI, Postgres. Dev owns the tech stack. [pause] Um, what about the authentication approach? I know there was a thing about whether we do our own auth or use an external provider.
+
+Dev: External provider. Don't roll your own auth, ever, that's—that's just best practice. I'd recommend Auth0 or Firebase Auth.
+
+Sarah: Do we have a preference between those two?
+
+Dev: I'd lean Auth0 because we already have a contract with them through the enterprise plan. But honestly either works.
+
+Marcus: Auth0 it is, if we already have the contract it's a no-brainer.
+
+Sarah: Cool. Priya, design timeline—what are you thinking?
+
+Priya: So I need the component library decision before I can finalize anything. Are we doing Material UI or building from scratch?
+
+Dev: Let's do Material UI, I don't want the team spending time on custom components for V1.
+
+Priya: Okay that works. If we're doing Material UI I can have wireframes ready in... two weeks? Maybe ten days if I push.
+
+Sarah: Let's say two weeks. Action item for Priya: wireframes by March 18th.
+
+Priya: Got it.
+
+Sarah: And Dev—can you have the repo scaffolded and CI pipeline set up by end of this week?
+
+Dev: Friday, yes.
+
+Sarah: Great. Marcus, anything else from your side before we wrap up?
+
+Marcus: Just—make sure the data stays in EU region. We have GDPR obligations and I don't want that to be an afterthought.
+
+Dev: Yep, noted. We'll use AWS eu-west-1.
+
+Sarah: Okay I'll send out a summary. So to recap: React/FastAPI/Postgres stack, Auth0 for authentication, Material UI component library, ship V1 by June 30, data in EU region. Dev scaffolds repo by Friday, Priya has wireframes by March 18. Anything I missed?
+
+Dev: I think that covers it.
+
+Marcus: Good call everyone.
+
+[END OF TRANSCRIPT]
