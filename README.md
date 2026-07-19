@@ -1,4 +1,4 @@
-# Tesseract (formerly Threadline) — Meeting Intelligence Pipeline
+# Tesseract - Intelligence Pipeline
 
 Tesseract is a production-quality meeting intelligence pipeline that processes meeting transcripts, extracts structured decisions/actions/entities, tracks decision lifecycles across multiple meetings (handling updates, review states, and supersession), flags logical contradictions, and renders an auto-updating executive briefing dashboard.
 
