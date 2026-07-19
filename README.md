@@ -18,7 +18,7 @@ Tesseract is a production-quality meeting intelligence pipeline that processes m
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────┐
-│                            Threadline System                             │
+│                            Tesseract System                             │
 │                                                                          │
 │  ┌────────────────────────────────┐                                      │
 │  │       React + TypeScript       │  Upload · Briefing · Graph · Search  │
@@ -27,18 +27,23 @@ Tesseract is a production-quality meeting intelligence pipeline that processes m
 │                 │ REST + SSE                                          │   │
 │  ┌──────────────▼─────────────────────────────────────────────┐      │   │
 │  │                   FastAPI Backend  (/backend)               │      │   │
-│  │  POST /api/v1/pipeline/run  (SSE stream, stage-by-stage)   │──────┘   │
+│  │  POST /api/v1/pipeline/run  (starts processing)            │──────┘   │
+│  │  GET  /api/v1/pipeline/status/{id} (polls audio jobs)       │          │
 │  │  GET  /api/v1/briefing                                      │          │
 │  │  GET  /api/v1/graph                                         │          │
 │  │  POST /api/v1/search                                        │          │
-│  │  GET  /api/v1/status                                        │          │
+│  │  GET  /api/v1/health                                        │          │
+│  │  DELETE /api/v1/governance/purge/{name} (GDPR Purge)        │          │
 │  └──────────────┬─────────────────────────────────────────────┘          │
-│                 │ calls                                                    │
+│                 │ dispatches to                                            │
 │  ┌──────────────▼─────────────────────────────────────────────┐          │
-│  │               threadline/  (core Python package)            │          │
+│  │               tesseract/  (core Python package)            │          │
 │  │                                                             │          │
-│  │  Ingestor ──► Extractor ──► Pipeline ──► BriefingGenerator │          │
-│  │                               │                             │          │
+│  │  A2A Sub-mounts:                                            │          │
+│  │  - /a2a/input            - /a2a/graph-writer                │          │
+│  │  - /a2a/extraction       - /a2a/semantic-memory             │          │
+│  │  - /a2a/briefing         - /a2a/manager                     │          │
+│  │                                                             │          │
 │  │                    ┌──────────┴──────────┐                 │          │
 │  │                    ▼                      ▼                 │          │
 │  │             GraphStore              VectorStore             │          │
@@ -53,15 +58,15 @@ Tesseract is a production-quality meeting intelligence pipeline that processes m
 
 ---
 
-## 2. Agent Framework Conception
+## 2. Agent Framework Setup
 
-Threadline was designed with modern agent abstractions in mind:
-- **Extractor Protocol** serves as a **Google ADK Agent** utilizing structural schemas.
-- **Pipeline Orchestrator** plays the role of a **Lyzr Workflow Engine** defining the execution flow.
-- **GraphStore** and **VectorStore** act as **Model Context Protocol (MCP)** tool boundaries.
-- **BriefingGenerator** serves as a specialized report rendering agent.
-
-For a detailed conceptual mapping and migration paths, see [ARCHITECTURE.md](file:///f:/CHRIST%20UNIVERSITY%20MCA/IV%20Trimester%20/Hackathon/Threadline/ARCHITECTURE.md).
+Tesseract is built using real agent abstractions:
+- **Input Handling Agent** ([input_agent.py](file:///c:/SattyGithub/ThreadLine/threadline/agents/input_agent.py)): Handles transcript reading and multimodal Gemini-based audio transcription.
+- **Extraction Agent** ([extraction_agent.py](file:///c:/SattyGithub/ThreadLine/threadline/agents/extraction_agent.py)): Leverages a minimal LangGraph state graph with a 3× retry loop to extract entities, decisions, and conflicts.
+- **Graph Writer Agent** ([graph_writer_agent.py](file:///c:/SattyGithub/ThreadLine/threadline/agents/graph_writer_agent.py)): Saves extracted structured data into the Neo4j Graph Store using custom MCP tool wrappers.
+- **Semantic Memory Agent** ([semantic_memory_agent.py](file:///c:/SattyGithub/ThreadLine/threadline/agents/semantic_memory_agent.py)): Embeds and indexes claims in the Qdrant Vector Store.
+- **Briefing Agent** ([briefing_agent.py](file:///c:/SattyGithub/ThreadLine/threadline/agents/briefing_agent.py)): Compiles the historical state into a comprehensive Markdown briefing.
+- **Manager Agent** ([manager_agent.py](file:///c:/SattyGithub/ThreadLine/threadline/agents/manager_agent.py)): A hybrid client coordinator that uses **Lyzr Studio** (primary) for orchestration and falls back to **Google ADK RemoteA2aAgent** running locally when Lyzr is unreachable.
 
 ---
 
@@ -70,14 +75,14 @@ For a detailed conceptual mapping and migration paths, see [ARCHITECTURE.md](fil
 ### Prerequisites
 - Python 3.9+ installed
 - Node.js (v18+) & npm installed
-- Docker & Docker Compose (optional, fallback in-memory stores are used automatically if Docker is offline)
+- Docker & Docker Compose (optional; fallback in-memory stores are used automatically if Docker is offline)
 
 ### Step 1: Environment Setup
 Copy the environment variables template and configure your API keys:
 ```bash
 cp .env.example .env
 ```
-Open `.env` and fill in `OPENAI_API_KEY` (required for Whisper audio transcription and LLM extraction). If no API key is provided, the system falls back to **Mock Mode**, generating realistic mock responses for testing.
+Open `.env` and fill in the values. See below for detailed instructions on obtaining key credentials.
 
 ### Step 2: Spin up Databases (Optional)
 If Docker is installed and running:
@@ -105,22 +110,63 @@ Open your browser and navigate to `http://localhost:5173`.
 
 ---
 
-## 4. Run tests
-To run the automated test suite (in-memory mode, zero infrastructure required):
+## 4. How to Obtain Environment Variables
+
+### A. LLM & Extraction Keys
+*   `EXTRACTOR_BACKEND`: `openai` to use GPT models, `gemini` to use Google models, or `mock` to run offline without spending credentials.
+*   `OPENAI_API_KEY`: 
+    1. Log in to the [OpenAI Platform](https://platform.openai.com/).
+    2. Go to **API Keys** -> **Create new secret key**.
+*   `GEMINI_API_KEY`:
+    1. Log in to [Google AI Studio](https://aistudio.google.com/).
+    2. Click **Get API Key** -> **Create API Key**.
+
+### B. Neo4j Graph Store Credentials
+*   `GRAPH_BACKEND`: Set to `neo4j` (or `memory` for offline mock mode).
+*   `NEO4J_URI`: Binds to `bolt://localhost:7687` for local Docker setups. For Neo4j Aura (cloud), paste your instance's `neo4j+s://...` URI.
+*   `NEO4J_USER` / `NEO4J_PASSWORD`: Local defaults are `neo4j` and `threadline_dev`. For Aura, use the credentials provided upon database creation.
+
+### C. Qdrant Vector Store Credentials
+*   `VECTOR_BACKEND`: Set to `qdrant` (or `memory` for offline mock mode).
+*   `QDRANT_URL`: Set to `http://localhost:6333` locally. For Qdrant Cloud, copy your cluster endpoint URL.
+*   `QDRANT_API_KEY`: Leave blank for local Docker. For Qdrant Cloud, create a key under **API Keys**.
+
+### D. Lyzr Studio Credentials (Manager Agent)
+*   `LYZR_API_KEY`: 
+    1. Go to [Lyzr Studio Console](https://studio.lyzr.ai/).
+    2. Generate an API Key under Account Settings.
+*   `LYZR_AGENT_ID`:
+    1. Create an orchestrator agent in the Lyzr Studio UI.
+    2. Copy the **Agent ID** string from the dashboard.
+
+---
+
+## 5. Running Automated Tests
+
+Tesseract includes a thorough suite of unit and integration tests.
+
+### Running Unit Tests (In-memory, zero credentials needed)
+To run the lightweight offline tests:
 ```bash
-pytest
+pytest -v
 ```
-To run tests including Docker integration tests:
+
+### Running Live Integration Tests (Requires active credentials/Docker services)
+To trigger testing against your live Neo4j, Qdrant, Lyzr Studio, and Gemini API endpoints:
 ```bash
+# Windows PowerShell
 $env:THREADLINE_INTEGRATION="1"
-pytest
+pytest -v
+
+# Linux/macOS
+THREADLINE_INTEGRATION=1 pytest -v
 ```
 
 ---
 
-## 5. Live Demo Script (Panel Presentation)
+## 6. Live Demo Script (Panel Presentation)
 
-During your presentation, you can demonstrate Threadline's unique ability to track decision lifecycles across meetings:
+During your presentation, you can demonstrate Tesseract's unique ability to track decision lifecycles across meetings:
 
 1. **Upload meeting_01.txt (Project Kickoff)**
    - Configures stack: React, FastAPI, Postgres, and Auth0.
@@ -131,20 +177,11 @@ During your presentation, you can demonstrate Threadline's unique ability to tra
 3. **Upload meeting_03.txt (Security Review)**
    - Auth0 is flagged for GDPR concerns.
    - The Auth0 decision status changes to `under_review` (not superseded).
-   - An amber **Contradiction Alert** pops up on the dashboard.
+   - An amber **Contradiction Alert** pops up on the dashboard showing a confidence score and a detailed reasoning trace explaining the conflict.
 4. **Upload meeting_04.txt (Resolution Call)**
    - Keycloak is confirmed as the new auth provider.
    - Auth0 status transitions to `superseded` by `Keycloak`.
    - The **Contradiction is resolved** and flags clear on the dashboard.
-5. **Run Semantic Search**
-   - Query *"GDPR compliance"* or *"authentication switch"* to see similarity scoring and source-attributed fact cards from Qdrant.
-
----
-
-## 6. Graceful Degradation (Demo Insurance)
-
-Threadline degrades gracefully rather than crashing during a live presentation:
-- **No Neo4j?** The backend automatically switches to `InMemoryGraphStore`.
-- **No Qdrant?** The backend automatically switches to `InMemoryVectorStore` using local sentence-transformers cosine similarity (or hash fallback).
-- **No API keys?** The pipeline switches to `MockExtractor`, providing deterministic mock data for the 4 meetings to keep the visual flow intact.
-- **Audio failed?** The frontend marks audio uploads as best-effort; transcript `.txt` files remain fully supported offline.
+5. **GDPR Cascade Purge**
+   - Execute a `DELETE /api/v1/governance/purge/Dev Rao`.
+   - Show that Dev Rao's metadata speaker references are wiped from vector chunks and graph nodes, while decisions themselves remain intact with owner fields set to null.
