@@ -173,6 +173,9 @@ class ActionItem(BaseModel):
     status:               ActionItemStatus  = ActionItemStatus.open
     source_meeting_id:    str
     completed_meeting_id: Optional[str]     = None
+    confidence:           float             = 1.0
+    reasoning:            Optional[str]     = None
+    is_stale:             bool              = False
 
 
 class Entity(BaseModel):
@@ -233,6 +236,8 @@ class ConflictRecord(BaseModel):
     meeting_b_id:          str
     resolved:              bool          = False
     resolution_meeting_id: Optional[str] = None
+    confidence:            float         = 1.0
+    reasoning:             Optional[str] = None
 
 
 class SupersessionRecord(BaseModel):

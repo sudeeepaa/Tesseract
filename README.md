@@ -1,6 +1,16 @@
-# Threadline — Meeting Intelligence Pipeline
+# Tesseract (formerly Threadline) — Meeting Intelligence Pipeline
 
-Threadline is a production-quality meeting intelligence pipeline that processes meeting transcripts, extracts structured decisions/actions/entities, tracks decision lifecycles across multiple meetings (handling updates, review states, and supersession), flags logical contradictions, and renders an auto-updating executive briefing dashboard.
+Tesseract is a production-quality meeting intelligence pipeline that processes meeting transcripts, extracts structured decisions/actions/entities, tracks decision lifecycles across multiple meetings (handling updates, review states, and supersession), flags logical contradictions, and renders an auto-updating executive briefing dashboard.
+
+---
+
+> [!IMPORTANT]
+> **SCOPE & ARCHITECTURE NOTE: Demo-Safe vs Enterprise Target**
+> This repository is configured to prioritize **lightweight, demo-safe reliability** while fully satisfying all **enterprise-grade compliance contracts**. 
+> - **Orchestration Layer**: Uses a hybrid approach with **Lyzr Studio** (primary) and an in-process **Google ADK RemoteA2aAgent** runner fallback. In testing or offline environments, it runs entirely in-process to guarantee a crash-free presentation.
+> - **Agent Isolation (A2A)**: Rather than running five distinct microservices (each with its own deployment and handshake failures), all agents (Input, Extraction, Graph Writer, Semantic Memory, Briefing, Manager) are deployed as **ASGI sub-apps** mounted directly under the main FastAPI parent process, communicating via A2A protocol semantic paths.
+> - **Database Fallbacks**: Automatically degrades to `InMemoryGraphStore` and `InMemoryVectorStore` (utilizing deterministic hash-based mock embeddings) if Neo4j or Qdrant Docker containers are offline.
+> - **Explainability & Security**: Employs parameterized Neo4j Cypher query disarming, input validation sanitizers, a cascaded GDPR purge engine, and confidence score reasoning traces for all contradiction and stale-item flags.
 
 ---
 

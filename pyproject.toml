@@ -21,6 +21,13 @@ dependencies = [
     "openai>=1.35",
     "google-generativeai>=0.7",
 
+    # Agent frameworks — ADK (with A2A support) + LangGraph
+    "google-adk[a2a]>=1.0",
+    "langgraph>=0.4",
+
+    # MCP SDK for custom tool servers
+    "mcp>=1.0",
+
     # Stores
     "neo4j>=5.20",
     "qdrant-client>=1.9",

@@ -1,6 +1,18 @@
-# Threadline — Conceptual Agent Architecture
+# Tesseract (formerly Threadline) — Conceptual Agent Architecture
 
-This document provides a technical mapping of Threadline's clean, Protocol-based dependency-injection design onto modern agent framework architectures (specifically Google ADK, Lyzr, Model Context Protocol (MCP), and Agent-to-Agent (A2A) communication).
+This document provides a technical mapping of Tesseract's Clean Architecture design onto modern agent framework architectures (specifically Google ADK, Lyzr, Model Context Protocol (MCP), and Agent-to-Agent (A2A) communication).
+
+---
+
+> [!IMPORTANT]
+> **SCOPE & ARCHITECTURE NOTE: Demo-Safe vs Enterprise Target**
+> Tesseract maps its production-grade design constructs directly onto in-process execution contexts to avoid dependency/network failures during a live demonstration:
+> 1. **Zero-Trust Network Boundary (A2A Sub-mounts)**: Agents run as distinct ASGI sub-applications mounted directly under the FastAPI parent process. This satisfies the Agent-to-Agent (A2A) network contract and routing layer while running reliably inside a single operating system process.
+> 2. **Orchestrator Hybrid Strategy**: The Manager Agent leverages **Lyzr Studio** (primary) for enterprise workflow execution and falls back gracefully to a localized **Google ADK RemoteA2aAgent** runner if API connectivity is unavailable.
+> 3. **Explainability & Security Boundaries**:
+>    - **Contradiction/Stale Reasoning**: Employs the CRISPE "Experiment" clause. All contradiction/conflict records and stale action items include a confidence score (float) and a 2-3 sentence reasoning trace.
+>    - **Injection Protection**: Sanitizes name fields against Cypher injection syntax and disarms unsafe Cypher keywords before any write transaction in the Graph and Vector stores.
+>    - **GDPR Article 17 Purge API**: Implements `DELETE /api/v1/governance/purge/{name}`, executing a cascading delete of the person's entity node and relationships in Neo4j, while clearing their assignee/owner status from all Decisions, Action Items, and semantic vector points.
 
 ---
 

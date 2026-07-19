@@ -6,6 +6,7 @@ threadline.egg-info/
 
 # Environment
 .env
+*.md
 
 # Test outputs and log files
 server.log

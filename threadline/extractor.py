@@ -110,7 +110,9 @@ Return a JSON object with exactly these keys:
   "conflicts_detected": [
     {{
       "old_decision_id":    "ID from EXISTING DECISIONS",
-      "conflict_description": "what exactly conflicts and why"
+      "conflict_description": "what exactly conflicts and why",
+      "confidence":         0.85,
+      "reasoning":          "2-3 sentence explanation trace of the conflict detection logic"
     }}
   ]
 }}
@@ -346,6 +348,12 @@ class LLMExtractor:
                 errors.append(f"ConflictRecord references unknown decision {old_id!r}")
                 continue
             try:
+                conf_val = raw_c.get("confidence", 0.9)
+                try:
+                    conf = float(conf_val)
+                except (ValueError, TypeError):
+                    conf = 0.9
+                reasoning = raw_c.get("reasoning") or "LLM-detected contradiction between facts."
                 new_conflicts.append(ConflictRecord(
                     fact_a_id=old_id,
                     fact_b_id=meeting_id,
@@ -355,6 +363,8 @@ class LLMExtractor:
                     meeting_a_id=old_d.source_meeting_id,
                     meeting_b_id=meeting_id,
                     resolved=False,
+                    confidence=conf,
+                    reasoning=reasoning,
                 ))
             except Exception as exc:
                 errors.append(f"ConflictRecord parse: {exc} ← {raw_c}")
@@ -577,6 +587,8 @@ _MOCK_RESPONSES: dict[str, dict] = {
                 meeting_a_id="meeting_01",
                 meeting_b_id="meeting_03",
                 resolved=False,
+                confidence=0.85,
+                reasoning="Telemetry routes through US infrastructure, which directly contradicts EU data residency requirements.",
             )
         ],
     },
@@ -683,6 +695,8 @@ class MockExtractor:
                     meeting_b_id="meeting_03",
                     resolved=True,
                     resolution_meeting_id="meeting_04",
+                    confidence=1.0,
+                    reasoning="Keycloak explicitly chosen as replacement, resolving the telemetry issue. This satisfies the EU data residency requirements since Keycloak is self-hosted locally in eu-west-1.",
                 )
             ]
 

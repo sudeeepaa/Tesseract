@@ -55,6 +55,7 @@ class GraphStore(Protocol):
     def get_meeting_count(self) -> int: ...
     def get_graph_snapshot(self) -> GraphSnapshot: ...
     def get_status(self) -> dict[str, Any]: ...
+    def purge_person(self, person_name: str) -> dict[str, Any]: ...
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -263,6 +264,45 @@ class InMemoryGraphStore:
             "edge_count":   len(self._edges),
             "decision_count": len(self._decisions),
             "conflict_count": len(self._conflicts),
+        }
+
+    def purge_person(self, person_name: str) -> dict[str, Any]:
+        """Cascade-delete person entity and clear their ownership from decisions and action items."""
+        removed_entities = 0
+        updated_decisions = 0
+        updated_action_items = 0
+
+        # 1. Remove entity matching person_name
+        target_ids = []
+        for ent_id, ent in list(self._entities.items()):
+            if ent.name.lower() == person_name.lower():
+                target_ids.append(ent_id)
+                del self._entities[ent_id]
+                removed_entities += 1
+
+        # Remove edges connected to those entities
+        for ent_id in target_ids:
+            self._edges = [
+                edge for edge in self._edges
+                if edge[0] != ent_id and edge[1] != ent_id
+            ]
+
+        # 2. Update decisions owner
+        for dec_id, dec in self._decisions.items():
+            if dec.owner and dec.owner.lower() == person_name.lower():
+                self._decisions[dec_id] = dec.model_copy(update={"owner": None})
+                updated_decisions += 1
+
+        # 3. Update action items assignee
+        for ai_id, ai in self._action_items.items():
+            if ai.assignee and ai.assignee.lower() == person_name.lower():
+                self._action_items[ai_id] = ai.model_copy(update={"assignee": None})
+                updated_action_items += 1
+
+        return {
+            "removed_entities": removed_entities,
+            "updated_decisions": updated_decisions,
+            "updated_action_items": updated_action_items,
         }
 
 

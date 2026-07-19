@@ -265,7 +265,9 @@ class Neo4jGraphStore:
                     cf.fact_b_id = $fact_b_id,
                     cf.meeting_a_id = $meeting_a_id,
                     cf.meeting_b_id = $meeting_b_id,
-                    cf.resolution_meeting_id = $resolution_meeting_id
+                    cf.resolution_meeting_id = $resolution_meeting_id,
+                    cf.confidence = $confidence,
+                    cf.reasoning = $reasoning
                 """,
                 id=c.id,
                 description=c.description,
@@ -275,6 +277,8 @@ class Neo4jGraphStore:
                 meeting_a_id=c.meeting_a_id,
                 meeting_b_id=c.meeting_b_id,
                 resolution_meeting_id=c.resolution_meeting_id,
+                confidence=c.confidence,
+                reasoning=c.reasoning,
             )
 
             if c.resolved:
@@ -378,6 +382,8 @@ class Neo4jGraphStore:
                     meeting_b_id=node["meeting_b_id"],
                     resolved=node["resolved"],
                     resolution_meeting_id=node.get("resolution_meeting_id"),
+                    confidence=node.get("confidence", 1.0),
+                    reasoning=node.get("reasoning"),
                 ))
             return conflicts
 
@@ -508,3 +514,59 @@ class Neo4jGraphStore:
                 "backend": "neo4j",
                 "error": str(e),
             }
+
+    def purge_person(self, person_name: str) -> dict[str, Any]:
+        """Cascade-delete person entity and clear ownership from decisions and action items in Neo4j."""
+        removed_entities = 0
+        updated_decisions = 0
+        updated_action_items = 0
+
+        with self.driver.session() as session:
+            # 1. Delete entity node and its relationships
+            res_delete = session.run(
+                """
+                MATCH (e:Entity)
+                WHERE toLower(e.name) = toLower($name)
+                WITH e, count(e) as cnt
+                DETACH DELETE e
+                RETURN cnt
+                """,
+                name=person_name,
+            )
+            single = res_delete.single()
+            if single:
+                removed_entities = single["cnt"]
+
+            # 2. Update decisions owner
+            res_dec = session.run(
+                """
+                MATCH (d:Decision)
+                WHERE toLower(d.owner) = toLower($name)
+                SET d.owner = null
+                RETURN count(d) as cnt
+                """,
+                name=person_name,
+            )
+            single = res_dec.single()
+            if single:
+                updated_decisions = single["cnt"]
+
+            # 3. Update action items assignee
+            res_ai = session.run(
+                """
+                MATCH (a:ActionItem)
+                WHERE toLower(a.assignee) = toLower($name)
+                SET a.assignee = null
+                RETURN count(a) as cnt
+                """,
+                name=person_name,
+            )
+            single = res_ai.single()
+            if single:
+                updated_action_items = single["cnt"]
+
+        return {
+            "removed_entities": removed_entities,
+            "updated_decisions": updated_decisions,
+            "updated_action_items": updated_action_items,
+        }

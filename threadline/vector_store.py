@@ -42,6 +42,7 @@ class VectorStore(Protocol):
         ...
 
     def get_status(self) -> dict[str, Any]: ...
+    def purge_person(self, person_name: str) -> dict[str, Any]: ...
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -102,6 +103,11 @@ class InMemoryVectorStore:
 
     def _load_model(self) -> None:
         if self._model is not None or self._use_hash_embed:
+            return
+        import os
+        if os.environ.get("THREADLINE_TESTING") == "1":
+            self._use_hash_embed = True
+            logger.info("Test environment detected: forcing pseudo-embeddings fallback.")
             return
         try:
             from sentence_transformers import SentenceTransformer
@@ -184,6 +190,27 @@ class InMemoryVectorStore:
             "vector_count": len(self._facts),
             "model":        self._embedding_model,
             "using_hash_fallback": self._use_hash_embed,
+        }
+
+    def purge_person(self, person_name: str) -> dict[str, Any]:
+        """Remove all indexed facts where the speaker matches person_name."""
+        initial_count = len(self._facts)
+        new_facts = []
+        new_embeddings = []
+        
+        for fact, emb in zip(self._facts, self._embeddings):
+            is_match = False
+            if fact.speaker and fact.speaker.lower() == person_name.lower():
+                is_match = True
+            if not is_match:
+                new_facts.append(fact)
+                new_embeddings.append(emb)
+                
+        self._facts = new_facts
+        self._embeddings = new_embeddings
+        removed = initial_count - len(self._facts)
+        return {
+            "removed_vectors": removed,
         }
 
 

@@ -353,11 +353,67 @@ class Pipeline:
 
 
 # ─────────────────────────────────────────────────────────────────────────────
+# AgentPipeline — Manager-Agent-backed wrapper (Phases 6+)
+# ─────────────────────────────────────────────────────────────────────────────
+
+class AgentPipeline:
+    """
+    Drop-in replacement for Pipeline that delegates all orchestration
+    to ManagerAgentRunner (Lyzr Studio primary, ADK in-process fallback).
+
+    Exposes exactly the same run_streaming() / run_sync() API as Pipeline
+    so the FastAPI endpoint and demo.py need zero changes.
+
+    This class is used by the FastAPI backend (via create_pipeline_agent()).
+    The original Pipeline class is still used by tests via direct DI.
+    """
+
+    def __init__(self, graph_store, vector_store) -> None:
+        # Wire MCP singleton stores so all agent MCP tools work
+        from threadline.agents.agent_registry import wire_stores
+        wire_stores(graph_store, vector_store)
+
+        from threadline.agents.manager_agent import ManagerAgentRunner
+        self._manager = ManagerAgentRunner()
+
+        # Expose stores on self so FastAPI deps (get_graph_store, etc.) still work
+        self.graph_store = graph_store
+        self.vector_store = vector_store
+
+    def run_streaming(
+        self,
+        source: str | Path,
+        meeting_id: str | None = None,
+        content: bytes | None = None,
+    ) -> Generator[StageEvent, None, PipelineResult]:
+        """Delegate to ManagerAgentRunner.run_streaming()."""
+        source = Path(source) if isinstance(source, str) else source
+        if meeting_id is None:
+            meeting_id = source.stem
+        return self._manager.run_streaming(str(source), meeting_id, content)
+
+    def run_sync(
+        self,
+        source: str | Path,
+        meeting_id: str | None = None,
+        content: bytes | None = None,
+    ) -> PipelineResult:
+        """Delegate to ManagerAgentRunner.run_sync()."""
+        source = Path(source) if isinstance(source, str) else source
+        if meeting_id is None:
+            meeting_id = source.stem
+        return self._manager.run_sync(str(source), meeting_id, content)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
 # Factory
 # ─────────────────────────────────────────────────────────────────────────────
 
 def create_pipeline(settings=None) -> Pipeline:
-    """Wires up a fully configured Pipeline from settings."""
+    """
+    Wires up a fully configured Pipeline from settings.
+    Used by tests (direct DI with in-memory stores) and CLI.
+    """
     if settings is None:
         from threadline.config import get_settings
         settings = get_settings()
@@ -372,4 +428,26 @@ def create_pipeline(settings=None) -> Pipeline:
         vector_store=create_vector_store(settings),
         briefing_gen=BriefingGenerator(),
         openai_api_key=settings.openai_api_key,
+    )
+
+
+def create_pipeline_agent(settings=None) -> AgentPipeline:
+    """
+    Wires up an AgentPipeline backed by ManagerAgentRunner.
+    Used by the FastAPI backend so all requests flow through the
+    Lyzr + ADK agent orchestration system.
+    """
+    if settings is None:
+        from threadline.config import get_settings
+        settings = get_settings()
+
+    from threadline.graph_store  import create_graph_store
+    from threadline.vector_store import create_vector_store
+
+    graph_store  = create_graph_store(settings)
+    vector_store = create_vector_store(settings)
+
+    return AgentPipeline(
+        graph_store=graph_store,
+        vector_store=vector_store,
     )

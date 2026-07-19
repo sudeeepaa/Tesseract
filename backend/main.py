@@ -21,6 +21,8 @@ from backend.api.v1.briefing import router as briefing_router
 from backend.api.v1.graph import router as graph_router
 from backend.api.v1.search import router as search_router
 from backend.api.v1.status import router as status_router
+from backend.api.v1.governance import router as governance_router
+from backend.api.v1.health import router as health_router
 
 # Setup logging
 settings = get_settings()
@@ -36,27 +38,23 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     Server lifespan context manager.
     Initializes stores and orchestrator pipeline on startup, attaching to app state.
     """
-    logger.info("Initializing Threadline core components...")
+    logger.info("Initializing Threadline/Tesseract core components...")
     
     # 1. Instantiate stateful stores & components
     graph_store = create_graph_store(settings)
     vector_store = create_vector_store(settings)
     extractor = create_extractor(settings)
     
-    pipeline = Pipeline(
-        extractor=extractor,
-        graph_store=graph_store,
-        vector_store=vector_store,
-        openai_api_key=settings.openai_api_key
-    )
-
+    from threadline.pipeline import AgentPipeline
+    pipeline = AgentPipeline(graph_store, vector_store)
+    
     # 2. Attach to app.state so FastAPI dependency functions can inject them
     app.state.graph_store = graph_store
     app.state.vector_store = vector_store
     app.state.extractor = extractor
     app.state.pipeline = pipeline
 
-    logger.info("Threadline initialization complete. Server is ready.")
+    logger.info("Threadline/Tesseract initialization complete. Server is ready.")
     yield
     
     # Clean up (if any close functions exist)
@@ -66,12 +64,21 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         except Exception:
             pass
 
+# Build A2A sub-apps
+from threadline.agents.agent_registry import build_a2a_mounts
+a2a_mounts = build_a2a_mounts()
+
 app = FastAPI(
-    title="Threadline API",
+    title="Tesseract API",
     description="Meeting intelligence pipeline backend wrapping knowledge graph, similarity search, and briefings.",
     version="1.0.0",
     lifespan=lifespan
 )
+
+# Mount A2A agent sub-apps
+for path, sub_app in a2a_mounts.items():
+    app.mount(path, sub_app)
+    logger.info(f"Mounted A2A app at {path}")
 
 # Configure CORS for frontend access.
 # Using allow_origin_regex so any localhost port works in dev
@@ -90,6 +97,8 @@ app.include_router(briefing_router, prefix="/api/v1")
 app.include_router(graph_router, prefix="/api/v1")
 app.include_router(search_router, prefix="/api/v1")
 app.include_router(status_router, prefix="/api/v1")
+app.include_router(governance_router, prefix="/api/v1")
+app.include_router(health_router, prefix="/api/v1")
 
 @app.get("/")
 async def root():

@@ -9,6 +9,9 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
+# Force testing environment for vector store to prevent Hugging Face model downloads
+os.environ["THREADLINE_TESTING"] = "1"
+
 import pytest
 
 from threadline.extractor    import MockExtractor

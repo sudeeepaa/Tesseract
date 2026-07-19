@@ -214,3 +214,33 @@ class QdrantVectorStore:
                 "backend": "qdrant",
                 "error": str(e),
             }
+
+    def purge_person(self, person_name: str) -> dict[str, Any]:
+        """Delete points from Qdrant where payload speaker matches person_name."""
+        try:
+            self.verify_connectivity()
+            from qdrant_client.http import models as rest_models
+            
+            # Since Qdrant match is case-sensitive, match speaker by doing a case-insensitive check if possible,
+            # or exact match. Qdrant MatchValue works with case-sensitive strings.
+            self.client.delete(
+                collection_name=self.collection_name,
+                points_selector=rest_models.Filter(
+                    must=[
+                        rest_models.FieldCondition(
+                            key="speaker",
+                            match=rest_models.MatchValue(value=person_name)
+                        )
+                    ]
+                )
+            )
+            return {
+                "removed_vectors": "unknown_qdrant_cascade",
+                "status": "success"
+            }
+        except Exception as e:
+            logger.error("Qdrant purge failed: %s", e)
+            return {
+                "removed_vectors": 0,
+                "error": str(e)
+            }

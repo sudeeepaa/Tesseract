@@ -142,7 +142,10 @@ class BriefingGenerator:
             for a in open_ai:
                 assignee = f" → **{a.assignee}**" if a.assignee else ""
                 due      = f" (due {a.due_date})" if a.due_date else ""
-                L.append(f"- [ ] {a.text}{assignee}{due} `[{a.source_meeting_id}]`")
+                stale_str = ""
+                if getattr(a, "is_stale", False):
+                    stale_str = f" ⚠️ **[STALE]** (Confidence: {a.confidence:.2f}, Reasoning: {a.reasoning})"
+                L.append(f"- [ ] {a.text}{assignee}{due}{stale_str} `[{a.source_meeting_id}]`")
         else:
             L.append("_No open action items._")
         L.append("")
