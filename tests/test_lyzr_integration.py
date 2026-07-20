@@ -13,6 +13,9 @@ def test_lyzr_studio_live_integration():
     Test connectivity to the live Lyzr Studio API.
     Only runs if LYZR_API_KEY and LYZR_AGENT_ID environment variables are set.
     """
+    from dotenv import load_dotenv
+    load_dotenv(".env", override=True)
+    
     api_key = os.getenv("LYZR_API_KEY", "")
     agent_id = os.getenv("LYZR_AGENT_ID", "")
     
