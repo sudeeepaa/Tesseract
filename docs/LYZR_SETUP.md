@@ -12,7 +12,8 @@ output regardless — so a live demo never crashes.
 ## 1. Create the agent in Lyzr Studio
 
 1. Sign in at <https://studio.lyzr.ai> and create a new **Agent**.
-2. **Model:** any capable chat model (e.g. GPT-4o-mini or Gemini-1.5-Flash).
+2. **Model:** any capable chat model (e.g. GPT-4o-mini or a current Gemini Flash
+   like `gemini-flash-lite-latest`).
 3. **System prompt** — the request already carries Tesseract's full extraction
    instructions in each message, so keep the agent's own prompt minimal:
 
@@ -23,10 +24,61 @@ output regardless — so a live demo never crashes.
    describe — no prose, no markdown, no code fences.
    ```
 
-4. **Response format:** JSON / text (do not force a schema that conflicts with the
-   one described in the message). Temperature low (~0.1) for stable JSON.
+4. **Response format:** leave the output **unstructured / plain text** — do NOT
+   attach a Structured Output module. The schema is already in every message; a
+   forced structured output overrides it and the agent returns the wrong keys
+   (e.g. a template returning `{"tweet": "...", "title": "..."}`), which parses to
+   zero decisions. Temperature low (~0.1) for stable JSON.
 5. Save and copy the **Agent ID** from the agent's URL / settings.
 6. Create an **API key** from your Lyzr account settings.
+
+> ⚠️ **Most common mistake:** a template/structured-output agent that returns its
+> own JSON shape. If uploads come back with 0 decisions, this is why — see the
+> schema below and remove any forced output schema.
+
+## 1a. Output schema (what the agent must return)
+
+Tesseract sends the schema in the message, so you normally don't configure it in
+Lyzr at all. But if Lyzr *requires* a response schema, use **exactly this** one — do
+not invent a new shape. The parser (`LLMExtractor._parse`) reads these six top-level
+keys; each is an array (`[]` if empty — never omit a key):
+
+```json
+{
+  "decisions": [
+    { "text": "string", "status": "proposed|confirmed|under_review|superseded|reversed",
+      "rationale": "string|null", "owner": "string|null",
+      "supersedes_decision_id": "existing-id|null" }
+  ],
+  "prior_decision_updates": [
+    { "decision_id": "existing-id", "decision_text": "string",
+      "new_status": "under_review|superseded|reversed",
+      "reason": "string", "new_decision_id": "id|null" }
+  ],
+  "action_items": [
+    { "text": "string", "assignee": "string|null",
+      "due_date": "YYYY-MM-DD or string|null",
+      "status": "open|in_progress|completed|cancelled" }
+  ],
+  "entities": [
+    { "name": "string",
+      "entity_type": "person|organization|project|date|location|technology" }
+  ],
+  "topics": ["string"],
+  "conflicts_detected": [
+    { "old_decision_id": "existing-id", "conflict_description": "string",
+      "confidence": 0.85, "reasoning": "string" }
+  ]
+}
+```
+
+Notes:
+- Parsing is lenient — missing keys default to `[]`, so a wrong-schema reply doesn't
+  crash; it just extracts nothing. The agent must produce **these** keys.
+- The signature of the product is the `status` distinction — `under_review` (a prior
+  decision is questioned, no replacement yet) vs `superseded` (explicitly replaced by
+  a confirmed new decision) — plus `conflicts_detected`. The full rules are in the
+  system prompt that ships inside each message, so the model already sees them.
 
 ## 2. Configure Tesseract
 
