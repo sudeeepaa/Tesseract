@@ -56,6 +56,18 @@ class GraphStore(Protocol):
     def get_graph_snapshot(self) -> GraphSnapshot: ...
     def get_status(self) -> dict[str, Any]: ...
     def purge_person(self, person_name: str) -> dict[str, Any]: ...
+    def get_conflict(self, conflict_id: str) -> ConflictRecord | None: ...
+    def resolve_conflict(
+        self,
+        conflict_id:           str,
+        choice:                str,
+        note:                  str | None = None,
+        resolved_by:           str | None = None,
+        keep_decision_id:      str | None = None,
+        supersede_decision_id: str | None = None,
+    ) -> dict[str, Any]:
+        """Apply a human decision to a flagged conflict. See ConflictResolutionRequest."""
+        ...
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -264,6 +276,77 @@ class InMemoryGraphStore:
             "edge_count":   len(self._edges),
             "decision_count": len(self._decisions),
             "conflict_count": len(self._conflicts),
+        }
+
+    def get_conflict(self, conflict_id: str) -> ConflictRecord | None:
+        return self._conflicts.get(conflict_id)
+
+    def resolve_conflict(
+        self,
+        conflict_id:           str,
+        choice:                str,
+        note:                  str | None = None,
+        resolved_by:           str | None = None,
+        keep_decision_id:      str | None = None,
+        supersede_decision_id: str | None = None,
+    ) -> dict[str, Any]:
+        """
+        Apply a human's decision to a flagged conflict.
+
+        "review" leaves the conflict OPEN (still needs attention) but records
+        the note and flags the challenged decision as under_review.  Every other
+        choice marks the conflict resolved.
+        """
+        conflict = self._conflicts.get(conflict_id)
+        if conflict is None:
+            raise KeyError(f"Conflict {conflict_id!r} not found")
+
+        updated_decisions = 0
+        resolved = choice not in ("review", "defer", "deferred")
+
+        # Supersede the losing decision (switch case)
+        if supersede_decision_id and supersede_decision_id in self._decisions:
+            self._decisions[supersede_decision_id] = self._decisions[
+                supersede_decision_id
+            ].model_copy(update={"status": DecisionStatus.superseded})
+            updated_decisions += 1
+
+        # Confirm the winning / kept decision
+        if keep_decision_id and keep_decision_id in self._decisions:
+            dec = self._decisions[keep_decision_id]
+            if dec.status != DecisionStatus.confirmed:
+                self._decisions[keep_decision_id] = dec.model_copy(
+                    update={"status": DecisionStatus.confirmed}
+                )
+                updated_decisions += 1
+
+        # "review" → flag the challenged decision, keep the conflict open
+        if not resolved:
+            target = keep_decision_id or (
+                conflict.fact_a_id if conflict.fact_a_id in self._decisions else None
+            )
+            if target and target in self._decisions:
+                self._decisions[target] = self._decisions[target].model_copy(
+                    update={"status": DecisionStatus.under_review}
+                )
+                updated_decisions += 1
+
+        self._conflicts[conflict_id] = conflict.model_copy(update={
+            "resolved":          resolved,
+            "resolution_choice": choice,
+            "resolution_note":   note,
+            "resolved_by":       resolved_by,
+            "resolved_at":       _now(),
+        })
+
+        return {
+            "conflict_id":       conflict_id,
+            "resolved":          resolved,
+            "choice":            choice,
+            "updated_decisions": updated_decisions,
+            "summary": (
+                "Conflict resolved" if resolved else "Flagged for review (still open)"
+            ),
         }
 
     def purge_person(self, person_name: str) -> dict[str, Any]:

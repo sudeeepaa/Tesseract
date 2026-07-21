@@ -18,3 +18,5 @@ demo_unbuffered_results.txt
 frontend/node_modules/
 frontend/dist/
 frontend/.env
+# OS
+.DS_Store

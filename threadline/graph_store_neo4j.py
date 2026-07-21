@@ -263,6 +263,8 @@ class Neo4jGraphStore:
                     cf.resolved = $resolved,
                     cf.fact_a_id = $fact_a_id,
                     cf.fact_b_id = $fact_b_id,
+                    cf.fact_a_text = $fact_a_text,
+                    cf.fact_b_text = $fact_b_text,
                     cf.meeting_a_id = $meeting_a_id,
                     cf.meeting_b_id = $meeting_b_id,
                     cf.resolution_meeting_id = $resolution_meeting_id,
@@ -274,6 +276,8 @@ class Neo4jGraphStore:
                 resolved=c.resolved,
                 fact_a_id=c.fact_a_id,
                 fact_b_id=c.fact_b_id,
+                fact_a_text=c.fact_a_text,
+                fact_b_text=c.fact_b_text,
                 meeting_a_id=c.meeting_a_id,
                 meeting_b_id=c.meeting_b_id,
                 resolution_meeting_id=c.resolution_meeting_id,
@@ -375,7 +379,7 @@ class Neo4jGraphStore:
                     id=node["id"],
                     fact_a_id=node["fact_a_id"],
                     fact_b_id=node["fact_b_id"],
-                    fact_a_text=node.get("fact_a_text", ""), # or query node_a
+                    fact_a_text=node.get("fact_a_text", ""),
                     fact_b_text=node.get("fact_b_text", ""),
                     description=node["description"],
                     meeting_a_id=node["meeting_a_id"],
@@ -384,8 +388,104 @@ class Neo4jGraphStore:
                     resolution_meeting_id=node.get("resolution_meeting_id"),
                     confidence=node.get("confidence", 1.0),
                     reasoning=node.get("reasoning"),
+                    resolution_choice=node.get("resolution_choice"),
+                    resolution_note=node.get("resolution_note"),
+                    resolved_by=node.get("resolved_by"),
                 ))
             return conflicts
+
+    def get_conflict(self, conflict_id: str) -> ConflictRecord | None:
+        for c in self.get_all_conflicts():
+            if c.id == conflict_id:
+                return c
+        return None
+
+    def resolve_conflict(
+        self,
+        conflict_id:           str,
+        choice:                str,
+        note:                  str | None = None,
+        resolved_by:           str | None = None,
+        keep_decision_id:      str | None = None,
+        supersede_decision_id: str | None = None,
+    ) -> dict[str, Any]:
+        with self.driver.session() as session:
+            return session.execute_write(
+                self._resolve_tx, conflict_id, choice, note,
+                resolved_by, keep_decision_id, supersede_decision_id,
+            )
+
+    def _resolve_tx(
+        self, tx: Any, conflict_id: str, choice: str, note: str | None,
+        resolved_by: str | None, keep_decision_id: str | None,
+        supersede_decision_id: str | None,
+    ) -> dict[str, Any]:
+        if not tx.run("MATCH (cf:Conflict {id: $id}) RETURN cf", id=conflict_id).peek():
+            raise KeyError(f"Conflict {conflict_id!r} not found")
+
+        from datetime import datetime, timezone
+        updated_decisions = 0
+        resolved = choice not in ("review", "defer", "deferred")
+
+        if supersede_decision_id:
+            r = tx.run(
+                "MATCH (d:Decision {id: $id}) SET d.status = 'superseded' RETURN d",
+                id=supersede_decision_id,
+            )
+            if r.peek():
+                updated_decisions += 1
+
+        if keep_decision_id:
+            r = tx.run(
+                "MATCH (d:Decision {id: $id}) SET d.status = 'confirmed' RETURN d",
+                id=keep_decision_id,
+            )
+            if r.peek():
+                updated_decisions += 1
+
+        if not resolved and keep_decision_id:
+            tx.run(
+                "MATCH (d:Decision {id: $id}) SET d.status = 'under_review'",
+                id=keep_decision_id,
+            )
+
+        tx.run(
+            """
+            MATCH (cf:Conflict {id: $id})
+            SET cf.resolved = $resolved,
+                cf.resolution_choice = $choice,
+                cf.resolution_note = $note,
+                cf.resolved_by = $resolved_by,
+                cf.resolved_at = $resolved_at
+            """,
+            id=conflict_id,
+            resolved=resolved,
+            choice=choice,
+            note=note,
+            resolved_by=resolved_by,
+            resolved_at=datetime.now(timezone.utc).isoformat(),
+        )
+
+        if resolved and keep_decision_id:
+            tx.run(
+                """
+                MATCH (d:Decision {id: $kid}), (cf:Conflict {id: $cid})
+                MERGE (d)-[r:RESOLVES]->(cf)
+                ON CREATE SET r.superseded = false
+                """,
+                kid=keep_decision_id,
+                cid=conflict_id,
+            )
+
+        return {
+            "conflict_id":       conflict_id,
+            "resolved":          resolved,
+            "choice":            choice,
+            "updated_decisions": updated_decisions,
+            "summary": (
+                "Conflict resolved" if resolved else "Flagged for review (still open)"
+            ),
+        }
 
     def get_all_topics(self) -> list[str]:
         with self.driver.session() as session:

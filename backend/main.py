@@ -22,6 +22,8 @@ from backend.api.v1.graph import router as graph_router
 from backend.api.v1.search import router as search_router
 from backend.api.v1.status import router as status_router
 from backend.api.v1.governance import router as governance_router
+from backend.api.v1.conflicts import router as conflicts_router
+from backend.api.v1.demo import router as demo_router
 from backend.api.v1.health import router as health_router
 
 # Setup logging
@@ -98,6 +100,8 @@ app.include_router(graph_router, prefix="/api/v1")
 app.include_router(search_router, prefix="/api/v1")
 app.include_router(status_router, prefix="/api/v1")
 app.include_router(governance_router, prefix="/api/v1")
+app.include_router(conflicts_router, prefix="/api/v1")
+app.include_router(demo_router, prefix="/api/v1")
 app.include_router(health_router, prefix="/api/v1")
 
 @app.get("/")

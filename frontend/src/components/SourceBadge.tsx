@@ -5,27 +5,16 @@ interface SourceBadgeProps {
   meetingId: string;
 }
 
-export const SourceBadge: React.FC<SourceBadgeProps> = ({ meetingId }) => {
-  return (
-    <span 
-      style={{
-        display: 'inline-flex',
-        alignItems: 'center',
-        gap: '0.25rem',
-        padding: '0.2rem 0.5rem',
-        borderRadius: '4px',
-        fontSize: '0.75rem',
-        fontWeight: 600,
-        backgroundColor: 'rgba(79, 70, 229, 0.12)',
-        color: '#818cf8',
-        border: '1px solid rgba(79, 70, 229, 0.3)',
-        fontFamily: 'var(--font-mono)',
-        cursor: 'default'
-      }}
-      title={`Source meeting: ${meetingId}`}
-    >
-      <FileText size={12} />
-      {meetingId}
-    </span>
-  );
-};
+/** meeting_01 → "Meeting 1"; otherwise Title Case the id. */
+export function meetingLabel(meetingId: string): string {
+  const m = meetingId.match(/^meeting[_-]?0*(\d+)$/i);
+  if (m) return `Meeting ${m[1]}`;
+  return meetingId.replace(/[_-]+/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+export const SourceBadge: React.FC<SourceBadgeProps> = ({ meetingId }) => (
+  <span className="source-chip" title={`From ${meetingId}`}>
+    <FileText size={12} />
+    {meetingLabel(meetingId)}
+  </span>
+);

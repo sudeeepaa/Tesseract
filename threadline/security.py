@@ -41,6 +41,24 @@ def sanitize_name(name: str) -> str:
     return name.strip()
 
 
+def sanitize_text(text: str | None, max_len: int = 2000) -> str | None:
+    """
+    Sanitize a free-text field (e.g. a user's resolution note).
+
+    Unlike sanitize_name, this preserves ordinary punctuation, quotes, and
+    apostrophes for readability — writes are parameterized, so this is
+    defense-in-depth against Cypher construct injection, not the sole guard.
+    """
+    if not text:
+        return text
+    if len(text) > max_len:
+        logger.warning("Sanitizing note field: size truncated from %d to %d", len(text), max_len)
+        text = text[:max_len]
+    # Strip only the characters dangerous in a stray Cypher/label context.
+    text = re.sub(r"[`;{}\\]", "", text)
+    return text.strip()
+
+
 def validate_extraction_result(result: ExtractionResult) -> ExtractionResult:
     """
     Perform deep validation and sanitization of the ExtractionResult.

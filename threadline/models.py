@@ -238,6 +238,31 @@ class ConflictRecord(BaseModel):
     resolution_meeting_id: Optional[str] = None
     confidence:            float         = 1.0
     reasoning:             Optional[str] = None
+    # ── Human-in-the-loop resolution (set when a user resolves via the UI) ────
+    resolution_choice:     Optional[str]      = None   # "keep" | "switch" | "review" | "dismiss"
+    resolution_note:       Optional[str]      = None
+    resolved_by:           Optional[str]      = None
+    resolved_at:           Optional[datetime] = None
+
+
+class ConflictResolutionRequest(BaseModel):
+    """
+    Body for POST /api/v1/conflicts/{id}/resolve — a human deciding how to
+    settle a flagged contradiction.
+
+    choice semantics:
+      • "keep"    — keep the current decision as-is; conflict resolved.
+      • "switch"  — replace old with new: supersede_decision_id → superseded,
+                    keep_decision_id → confirmed; conflict resolved.
+      • "review"  — flag for later: the challenged decision → under_review,
+                    conflict stays OPEN (not resolved) with the note attached.
+      • "dismiss" — resolve with no status change (mark as not a real conflict).
+    """
+    choice:                str
+    note:                  Optional[str] = None
+    resolved_by:           Optional[str] = None
+    keep_decision_id:      Optional[str] = None
+    supersede_decision_id: Optional[str] = None
 
 
 class SupersessionRecord(BaseModel):

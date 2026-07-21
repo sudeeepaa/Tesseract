@@ -37,6 +37,28 @@ export interface ConflictRecord {
   meeting_b_id: string;
   resolved: boolean;
   resolution_meeting_id?: string;
+  confidence?: number;
+  reasoning?: string;
+  resolution_choice?: string;
+  resolution_note?: string;
+  resolved_by?: string;
+  resolved_at?: string;
+}
+
+export type ResolutionChoice = 'keep' | 'switch' | 'review' | 'dismiss';
+
+export interface ConflictResolutionRequest {
+  choice: ResolutionChoice;
+  note?: string;
+  resolved_by?: string;
+  keep_decision_id?: string;
+  supersede_decision_id?: string;
+}
+
+export interface ConflictsResponse {
+  conflicts: ConflictRecord[];
+  unresolved_count: number;
+  total_count: number;
 }
 
 export interface BriefingOutput {
@@ -142,6 +164,46 @@ export const apiClient = {
     return res.json();
   },
 
+  async listConflicts(): Promise<ConflictsResponse> {
+    const res = await fetch(`${API_BASE_URL}/api/v1/conflicts`);
+    if (!res.ok) throw new Error('Failed to fetch conflicts');
+    return res.json();
+  },
+
+  async resolveConflict(
+    conflictId: string,
+    body: ConflictResolutionRequest
+  ): Promise<{ status: string; conflict: ConflictRecord | null }> {
+    const res = await fetch(
+      `${API_BASE_URL}/api/v1/conflicts/${encodeURIComponent(conflictId)}/resolve`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      }
+    );
+    if (!res.ok) {
+      const msg = res.status === 404 ? 'That conflict no longer exists.' : 'Could not save your decision.';
+      throw new Error(msg);
+    }
+    return res.json();
+  },
+
+  async purgePerson(name: string): Promise<any> {
+    const res = await fetch(
+      `${API_BASE_URL}/api/v1/governance/purge/${encodeURIComponent(name)}`,
+      { method: 'DELETE' }
+    );
+    if (!res.ok) throw new Error('Failed to remove person');
+    return res.json();
+  },
+
+  async seedSampleMeetings(): Promise<{ meetings_loaded: number }> {
+    const res = await fetch(`${API_BASE_URL}/api/v1/demo/seed`, { method: 'POST' });
+    if (!res.ok) throw new Error('Could not load the sample meetings');
+    return res.json();
+  },
+
   /**
    * Run the pipeline and return an EventSource connection.
    * Note: The caller must invoke close() on the returned EventSource when done listening.
@@ -163,7 +225,8 @@ export const apiClient = {
     // (a) Use fetch to POST, and have the backend return SSE stream, which we read using Response.body.getReader().
     // This is the standard, clean, modern way to do POST-based streaming in browsers!
     const controller = new AbortController();
-    
+    const state = { active: true };
+
     (async () => {
       try {
         const response = await fetch(`${API_BASE_URL}/api/v1/pipeline/run`, {
@@ -176,6 +239,18 @@ export const apiClient = {
           throw new Error(`Pipeline initialization failed: ${response.statusText}`);
         }
 
+        const ctype = response.headers.get('content-type') || '';
+
+        // Audio path: the backend accepts the job (202 + JSON) and transcribes
+        // in the background. Poll the status endpoint instead of reading SSE.
+        if (response.status === 202 || ctype.includes('application/json')) {
+          const info = await response.json();
+          const mid = info.meeting_id || meetingId || '';
+          await pollJobStatus(mid, controller.signal, state, onMessage);
+          return;
+        }
+
+        // Text path: server streams one SSE event per pipeline stage.
         const reader = response.body?.getReader();
         if (!reader) throw new Error('Response body is not readable');
 
@@ -188,7 +263,6 @@ export const apiClient = {
 
           buffer += decoder.decode(value, { stream: true });
           const lines = buffer.split('\n');
-          // Keep the last partial line in the buffer
           buffer = lines.pop() || '';
 
           for (const line of lines) {
@@ -211,10 +285,57 @@ export const apiClient = {
     })();
 
     return {
-      cancel: () => controller.abort()
+      cancel: () => { state.active = false; controller.abort(); }
     };
   }
 };
+
+/**
+ * Poll a background (audio) pipeline job and surface each new stage event once.
+ */
+async function pollJobStatus(
+  meetingId: string,
+  signal: AbortSignal,
+  state: { active: boolean },
+  onMessage?: (event: PipelineStageEvent) => void
+): Promise<void> {
+  const seen = new Set<string>();
+  while (state.active && !signal.aborted) {
+    await new Promise((r) => setTimeout(r, 1200));
+    if (!state.active || signal.aborted) return;
+
+    let job: any;
+    try {
+      const r = await fetch(
+        `${API_BASE_URL}/api/v1/pipeline/status/${encodeURIComponent(meetingId)}`,
+        { signal }
+      );
+      if (!r.ok) continue;
+      job = await r.json();
+    } catch {
+      if (signal.aborted) return;
+      continue;
+    }
+
+    const events: PipelineStageEvent[] = job.events || [];
+    for (const ev of events) {
+      const key = `${ev.stage}:${ev.status}`;
+      if (!seen.has(key)) { seen.add(key); onMessage?.(ev); }
+    }
+
+    if (job.status === 'COMPLETED' || job.status === 'FAILED') {
+      const hasTerminal = events.some((e) => e.stage === 'PIPELINE');
+      if (!hasTerminal) {
+        onMessage?.({
+          stage: 'PIPELINE',
+          status: job.status === 'COMPLETED' ? 'done' : 'error',
+          message: job.progress || (job.status === 'COMPLETED' ? 'Done' : 'Processing failed'),
+        });
+      }
+      return;
+    }
+  }
+}
 
 function jsonParseSafely(str: string): any {
   try {
