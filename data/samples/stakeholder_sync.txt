@@ -1,0 +1,50 @@
+Meeting: Stakeholder Sync — Production Readiness & Launch Timeline
+Date: 2024-12-02
+Attendees: Sarah Chen (PM), Marcus Rivera (Tech Lead), Jordan Kim (Backend), Priya Patel (ML Eng), David Walsh (CTO)
+
+---
+
+David Walsh: I'll jump right in. We have a board review in three weeks and they want to see the Tesseract platform running end-to-end. Where are we?
+
+Sarah Chen: From a feature standpoint we're in good shape. Auth0 is deployed, the ML pipeline with Gemini hybrid validation is live in staging, and the Neo4j knowledge graph and Qdrant vector store are both operational on cloud-managed infrastructure. The main remaining items are load testing and a few frontend polish issues.
+
+David Walsh: Marcus, what's the status on load testing?
+
+Marcus Rivera: I completed the Cloud Run load test last Thursday. Good news and bad news. Good news: the service handles 200 concurrent users with p99 latency under 800ms for the REST endpoints. Bad news: the SSE streaming pipeline has a bottleneck. When multiple large transcripts are processed simultaneously, the event loop saturates. We hit a ceiling around 15 concurrent pipeline runs.
+
+David Walsh: Is 15 concurrent enough for the demo?
+
+Marcus Rivera: For a demo, yes. For production with enterprise clients, no. My recommendation is we move the pipeline execution to a proper async queue before the public launch. Not a blocker for the board demo.
+
+David Walsh: I agree. Let's call that a post-launch item. Decision: production launch proceeds on current architecture with the 15-concurrent ceiling as a known limitation. We will add async queue processing in the first post-launch sprint.
+
+Jordan Kim: I want to add a note on the authentication. Auth0 is working great in staging. I tested enterprise SAML SSO with two customer environments and it connected without issues. The original decision to use Google Identity Provider was the right instinct but wrong product — Auth0 is the right call.
+
+David Walsh: Good. What's left on the frontend?
+
+Sarah Chen: Priya, can you take that one?
+
+Priya Patel: Sure. The upload view, graph visualization, and search are all functional. The briefing view has one issue — when there are zero meetings in the system, it shows an error instead of an empty state. Jordan has a fix ready. The other thing is the graph becomes hard to read once you have more than 50 nodes. Marcus and I are looking at adding a filter panel.
+
+David Walsh: Filter panel — is that a blocker?
+
+Priya Patel: Not for the demo. We'll have exactly four sample meetings loaded, which renders cleanly.
+
+David Walsh: Alright. Action items from today: Jordan, deploy the empty-state fix to staging by December 5th. Marcus, document the async queue requirement as a formal post-launch milestone. Priya, prepare the four sample meeting transcripts to be pre-loaded in the demo environment by December 10th. Sarah, write the demo script for the board presentation.
+
+Sarah Chen: Will do. One last thing — naming. We've been calling this project Tesseract internally but there's already a Marvel property with that name. Legal has flagged it. We need a new name before the board meeting.
+
+David Walsh: What are the options?
+
+Sarah Chen: The shortlist from the team is: Threadline, Meridian, or Nexus.
+
+David Walsh: I like Threadline. It suggests connecting threads of conversation across time. Let's go with that. Decision: the product will be publicly named Threadline.
+
+Marcus Rivera: Good choice. I'll update the repo and documentation this week.
+
+Jordan Kim: Action item for me as well — update all API response strings, error messages, and the README to say Threadline instead of Tesseract.
+
+David Walsh: Perfect. I think we're in great shape for the board review. Keep up the good work everyone.
+
+---
+Meeting ended at 11:15 AM.

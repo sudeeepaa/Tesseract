@@ -1,0 +1,54 @@
+Meeting: Design Review — Authentication Reversal & Conflict Resolution
+Date: 2024-11-18
+Attendees: Sarah Chen (PM), Marcus Rivera (Tech Lead), Jordan Kim (Backend), Aisha Thompson (Security)
+
+---
+
+Sarah Chen: We need to revisit a few decisions from Sprint 12 planning based on what's happened in the past two weeks. Jordan, you want to start?
+
+Jordan Kim: Yeah. So the OAuth2 with Google Identity Provider decision — I've been implementing it and we have a problem. Our enterprise customers cannot use Google Identity Provider due to their internal IT security policies. I've spoken to three enterprise accounts and all of them require SAML support, which GIP doesn't give us cleanly.
+
+Aisha Thompson: I flagged this risk in the architecture review actually. We should have caught it earlier. The Google IDP path is not viable for enterprise.
+
+Sarah Chen: Okay. So we need to reverse that decision. What's the alternative?
+
+Jordan Kim: Auth0 with SAML support. It handles both OAuth2 and SAML, enterprise SSO, and has a free tier for up to 7,000 active users.
+
+Aisha Thompson: I reviewed Auth0 last week. It meets our security requirements. SOC 2 Type II certified, MFA support, and the SDK is solid.
+
+Marcus Rivera: What's the migration cost from where we are now?
+
+Jordan Kim: Three days of work. I already have a partial implementation that can be pivoted.
+
+Sarah Chen: Decision made: we are reversing the OAuth2 with Google Identity Provider decision. We are replacing it with Auth0 for all API authentication and authorization. Jordan, new deadline: November 25th.
+
+Jordan Kim: Confirmed.
+
+Sarah Chen: Now the other thing I want to address. Priya's not here today but she sent me an update on the Gemini 1.5 Flash integration. Marcus, you've reviewed it?
+
+Marcus Rivera: Yes. The Gemini integration is working in staging but we discovered a cost issue. Our actual volume is 8x higher than we estimated during planning, which means the cost delta is not $200/month — it's closer to $1,600/month. That changes the calculus.
+
+Sarah Chen: Significantly. What does Priya recommend?
+
+Marcus Rivera: She suggests keeping Gemini only for conflicts where the confidence score from BERT is between 0.4 and 0.7 — essentially use Gemini as a second-pass validator only on uncertain cases. This brings the cost down to about $180/month.
+
+Aisha Thompson: That's a reasonable hybrid approach.
+
+Sarah Chen: Okay. Update to prior decision: the Gemini 1.5 Flash integration is going into production but in a hybrid mode — BERT primary, Gemini secondary validation only on low-confidence cases. Priya needs to update the implementation. Marcus, can you relay?
+
+Marcus Rivera: Yes, I'll send her the notes.
+
+Jordan Kim: One more thing from my side. The Neo4j connection pooling I committed to for November 18th — it's done. I deployed it to staging this morning. The connection-per-request problem is fixed. Pool size is configurable via environment variable.
+
+Sarah Chen: Great. Mark that as completed. Any blockers on Cloud Run?
+
+Marcus Rivera: On track. Deployment config will be done by tomorrow. One action item I'm adding: we need to write a load test before we go to production on Cloud Run. I'll own that, deadline November 28th.
+
+Sarah Chen: Perfect. What about the architecture document you said you'd update?
+
+Marcus Rivera: That's done as of Friday. It reflects the Neo4j Aura and Qdrant decisions from last meeting.
+
+Sarah Chen: Good. Let's wrap there. Summary: Auth0 replaces Google IDP, Gemini goes hybrid, Neo4j pooling is shipped, architecture doc is done. Jordan and Marcus have the new action items.
+
+---
+Meeting ended at 2:23 PM.

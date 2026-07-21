@@ -1,0 +1,46 @@
+Meeting: Sprint 12 Planning — Tesseract Platform
+Date: 2024-11-04
+Attendees: Sarah Chen (PM), Marcus Rivera (Tech Lead), Priya Patel (ML Eng), Jordan Kim (Backend)
+
+---
+
+Sarah Chen: Alright everyone, let's kick off Sprint 12 planning. Marcus, can you start with the infrastructure update?
+
+Marcus Rivera: Sure. So the big news is we're moving the entire ML pipeline to Google Cloud Run. I've confirmed with Jordan that we can containerize the inference service within two weeks. We are dropping the on-prem GPU cluster entirely.
+
+Jordan Kim: Yeah, I've already spiked a Dockerfile for the inference server. It's working in staging. One thing though — we need to decide on authentication. Right now we're using API keys but I think we should migrate to OAuth2 before we go to production.
+
+Sarah Chen: Okay, let's make that a firm decision. We are adopting OAuth2 with Google Identity Provider for all API access. Jordan, you own that.
+
+Jordan Kim: Got it. I'll have a working implementation ready by November 15th.
+
+Priya Patel: I want to flag something about the ML model. The BERT-base model we're currently using has a 30% false positive rate on conflict detection. I've benchmarked Gemini 1.5 Flash and it brings that down to under 8%. I think we need to switch.
+
+Marcus Rivera: That's a significant improvement. What's the cost delta?
+
+Priya Patel: Roughly 3x more expensive per call, but given our volume it works out to about $200/month more. I think it's worth it.
+
+Sarah Chen: Agreed. Decision: we are replacing BERT-base with Gemini 1.5 Flash for conflict detection. Priya, can you have the integration done by end of sprint?
+
+Priya Patel: Yes, I can do that. I'll also need to update the evaluation benchmark suite. That's a separate action item.
+
+Sarah Chen: Perfect. What about the graph database migration? Last sprint we were evaluating Neo4j Aura vs. self-hosted.
+
+Marcus Rivera: We've made a decision there too. We are going with Neo4j Aura Cloud. The managed service cost is justified by zero ops overhead. I've already set up the account.
+
+Jordan Kim: I agree with that. Also — action item for me: I need to write the Neo4j connection pooling layer by November 18th. The current implementation creates a new connection per request which is going to be a problem under load.
+
+Sarah Chen: Good catch. Let's add that. Any other blockers?
+
+Priya Patel: One more thing. The vector store — we evaluated Pinecone, Weaviate, and Qdrant. My recommendation is Qdrant Cloud. It has the best price-to-performance ratio and the Python client is excellent.
+
+Marcus Rivera: I've reviewed the benchmarks Priya shared. I'm aligned. Decision: adopting Qdrant Cloud for all vector similarity search operations.
+
+Sarah Chen: Great. Let me summarize the action items. Jordan: OAuth2 implementation by November 15th. Jordan: Neo4j connection pooling by November 18th. Priya: Gemini 1.5 Flash integration by November 22nd. Priya: update evaluation benchmarks, same deadline. Marcus: finalize Cloud Run deployment configuration by November 20th. Does anyone have anything else?
+
+Marcus Rivera: Just want to confirm — the architecture document needs to be updated to reflect all these decisions. I'll do that by end of week.
+
+Sarah Chen: Perfect. Assign that to yourself. Alright, we're good. Let's get to work.
+
+---
+Meeting ended at 10:47 AM.

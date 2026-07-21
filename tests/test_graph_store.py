@@ -65,8 +65,11 @@ def test_in_memory_store_lifecycle():
 def test_neo4j_store_integration():
     from threadline.graph_store_neo4j import Neo4jGraphStore
     
+    from dotenv import load_dotenv
+    load_dotenv(".env", override=True)
+    
     uri = os.getenv("NEO4J_URI", "bolt://localhost:7687")
-    user = os.getenv("NEO4J_USER", "neo4j")
+    user = os.getenv("NEO4J_USER") or os.getenv("NEO4J_USERNAME") or "neo4j"
     pwd = os.getenv("NEO4J_PASSWORD", "threadline_dev")
     
     store = Neo4jGraphStore(uri=uri, user=user, password=pwd)

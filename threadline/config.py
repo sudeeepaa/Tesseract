@@ -12,9 +12,9 @@ not here; config just exposes the user's requested backend.
 from __future__ import annotations
 
 from enum import Enum
-from typing import Annotated
+from typing import Annotated, Any
 
-from pydantic import Field
+from pydantic import Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -41,6 +41,21 @@ class Settings(BaseSettings):
         case_sensitive=False,
         extra="ignore",
     )
+
+    @model_validator(mode="before")
+    @classmethod
+    def fallback_neo4j_user(cls, data: Any) -> Any:
+        if isinstance(data, dict):
+            # Map case-insensitively
+            username = (
+                data.get("NEO4J_USERNAME")
+                or data.get("neo4j_username")
+                or data.get("NEO4J_USER")
+                or data.get("neo4j_user")
+            )
+            if username:
+                data["neo4j_user"] = username
+        return data
 
     # ── LLM ──────────────────────────────────────────────────────────────────
     openai_api_key:      str              = Field(default="", alias="OPENAI_API_KEY")
