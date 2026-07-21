@@ -754,10 +754,40 @@ class MockExtractor:
 # Factory
 # ─────────────────────────────────────────────────────────────────────────────
 
+class HybridExtractor:
+    """
+    Routes the four canned demo fixtures (meeting_01 … meeting_04) to the
+    deterministic ``MockExtractor`` and everything else to a real LLM.
+
+    This keeps the flagship demo narrative (Auth0 → Keycloak supersession, the
+    GDPR conflict, and their hardcoded decision IDs) perfectly reproducible via
+    ``/demo/seed`` while a judge's own uploaded transcript gets genuine LLM
+    extraction. Presents the same ``Extractor`` protocol as its two backends.
+    """
+
+    def __init__(self, llm: Extractor):
+        self._llm = llm
+        self._mock = MockExtractor()
+
+    def extract(
+        self,
+        transcript: MeetingTranscript,
+        existing_decisions: list[Decision] | None = None,
+    ) -> ExtractionResult:
+        if transcript.id in _MOCK_RESPONSES:
+            logger.info("Hybrid: routing fixture %r to MockExtractor", transcript.id)
+            return self._mock.extract(transcript, existing_decisions)
+        return self._llm.extract(transcript, existing_decisions)
+
+
 def create_extractor(settings) -> Extractor:
     """
     Instantiate the correct Extractor implementation.
     Falls back to MockExtractor when the configured backend has no API key.
+
+    When a real LLM backend is active, it is wrapped in a ``HybridExtractor`` so
+    the four demo fixtures stay deterministic (see that class) while all other
+    transcripts get real extraction.
     """
     backend = settings.effective_extractor_backend
 
@@ -769,17 +799,18 @@ def create_extractor(settings) -> Extractor:
         return MockExtractor()
 
     if backend.value == "openai":
-        return LLMExtractor(
+        llm = LLMExtractor(
             backend="openai",
             openai_api_key=settings.openai_api_key,
             openai_model=settings.openai_model,
         )
-
-    if backend.value == "gemini":
-        return LLMExtractor(
+    elif backend.value == "gemini":
+        llm = LLMExtractor(
             backend="gemini",
             gemini_api_key=settings.gemini_api_key,
             gemini_model=settings.gemini_model,
         )
+    else:
+        raise ValueError(f"Unknown extractor backend: {backend!r}")
 
-    raise ValueError(f"Unknown extractor backend: {backend!r}")
+    return HybridExtractor(llm)

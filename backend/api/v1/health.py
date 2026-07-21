@@ -29,11 +29,16 @@ async def get_health_status(
     # 2. Check Vector Store
     vector_status = vector_store.get_status()
 
-    # 3. Check Lyzr Studio
-    lyzr_configured = bool(os.environ.get("LYZR_API_KEY"))
+    # 3. Check Lyzr Studio — extraction delegation needs BOTH the API key and a
+    #    target agent id, so only report "configured" when both are present.
+    lyzr_has_key = bool(os.environ.get("LYZR_API_KEY"))
+    lyzr_has_agent = bool(os.environ.get("LYZR_AGENT_ID"))
+    lyzr_configured = lyzr_has_key and lyzr_has_agent
     lyzr_status = {
         "configured": lyzr_configured,
-        "status": "healthy" if lyzr_configured else "degraded"
+        "api_key": lyzr_has_key,
+        "agent_id": lyzr_has_agent,
+        "status": "healthy" if lyzr_configured else "degraded",
     }
 
     # 4. Check Gemini API

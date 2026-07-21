@@ -32,7 +32,8 @@ which makes it demo-proof.
 | Vector store (InMemory + Qdrant) | ✅ Complete; **Qdrant verified live** after image bump | High |
 | Direct `Pipeline` orchestrator | ✅ Complete | High |
 | Agent layer + `AgentPipeline` (Manager/ADK/MCP) | ✅ **Verified live** in ADK fallback (2026-07-21) | Medium-High |
-| Lyzr Studio orchestration | ⚠️ Coded, unverified live | Low |
+| Extractor routing (Hybrid: fixtures→mock, else Lyzr→Gemini/ADK→mock) | ✅ **New — implemented + unit-tested**, live path validated in mock mode (2026-07-21) | High |
+| Lyzr Studio orchestration | ✅ **Rewritten as a real REST extraction call** (`_lyzr_extract`, fixes prior persistence-skip bug); needs a Studio agent + key to verify live — see `docs/LYZR_SETUP.md` | Medium (code done; live pending creds) |
 | FastAPI backend + SSE + GDPR purge | ✅ **Smoke-tested live** (2026-07-21) | High |
 | **Conflict resolution (human-in-the-loop)** | ✅ **New — full-stack, verified live** (2026-07-21) | High |
 | React frontend | ✅ **Rebuilt as Notion-style "Chief of Staff" command center** (2026-07-21) | Medium-High (build + module transforms clean; browser click-through still human) |
