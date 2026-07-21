@@ -61,7 +61,7 @@ class Settings(BaseSettings):
     openai_api_key:      str              = Field(default="", alias="OPENAI_API_KEY")
     openai_model:        str              = "gpt-4o-mini"
     gemini_api_key:      str              = Field(default="", alias="GEMINI_API_KEY")
-    gemini_model:        str              = "gemini-1.5-flash"
+    gemini_model:        str              = "gemini-flash-lite-latest"
     extractor_backend:   ExtractorBackend = ExtractorBackend.openai
 
     # ── Neo4j ─────────────────────────────────────────────────────────────────

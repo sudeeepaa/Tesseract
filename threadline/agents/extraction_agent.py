@@ -93,7 +93,11 @@ def _call_llm_node(state: ExtractionState) -> dict[str, Any]:
             import google.generativeai as genai
             from threadline.extractor import _SYSTEM_PROMPT
             genai.configure(api_key=gemini_key)
-            model = genai.GenerativeModel("gemini-2.0-flash")
+            # Respect the configured model (GEMINI_MODEL); default to a current,
+            # widely-available model rather than a hardcoded one that may be
+            # retired or out of free-tier quota.
+            model_name = os.environ.get("GEMINI_MODEL", "gemini-flash-lite-latest")
+            model = genai.GenerativeModel(model_name)
             full = f"{_SYSTEM_PROMPT}\n\n{state['user_prompt']}\n\nReturn only valid JSON."
             raw = model.generate_content(full).text or ""
             raw = re.sub(r"^```(?:json)?\s*", "", raw.strip())

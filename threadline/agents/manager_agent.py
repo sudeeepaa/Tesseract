@@ -129,6 +129,18 @@ def _lyzr_extract(
             return None
 
         result = LLMExtractor()._parse(raw, meeting_id, existing)
+
+        # Guard against a misconfigured Studio agent: if the reply parsed but
+        # carries no usable extraction (e.g. a template agent returning its own
+        # unrelated JSON), treat it as a failure so the caller falls back to the
+        # in-process Gemini/ADK path rather than persisting an empty result.
+        if not (result.decisions or result.action_items or result.entities
+                or result.topics or result.facts):
+            logger.warning(
+                "[%s] Lyzr returned no usable extraction (agent may be misconfigured — "
+                "see docs/LYZR_SETUP.md) — falling back to Gemini/ADK", correlation_id)
+            return None
+
         logger.info("[%s] Lyzr orchestration complete: %d decisions, %d conflict(s)",
                     correlation_id, len(result.decisions), len(result.new_conflicts))
         return result

@@ -4,8 +4,24 @@ Main FastAPI application entrypoint.
 from __future__ import annotations
 
 import logging
+import os
+import sys
 from contextlib import asynccontextmanager
 from typing import AsyncGenerator
+
+# Load .env into the process environment BEFORE anything reads os.environ.
+# pydantic Settings reads .env into its own object (so the stores connect), but
+# the agent path (manager_agent Lyzr/Gemini routing, input_agent audio) and the
+# health endpoint read os.environ directly — without this they'd never see the
+# keys. Skipped only under pytest so unit tests stay hermetic (the running
+# server keeps THREADLINE_TESTING=1 for A2A mount-skipping, so we can't key off
+# that flag here).
+if "pytest" not in sys.modules:
+    try:
+        from dotenv import load_dotenv
+        load_dotenv()
+    except ImportError:
+        pass
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
