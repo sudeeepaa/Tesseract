@@ -352,6 +352,7 @@ class ManagerAgentRunner:
             from threadline.agents.input_agent import InputAgentRunner
             input_runner = InputAgentRunner(
                 gemini_api_key=os.environ.get("GEMINI_API_KEY", ""),
+                gemini_model=os.environ.get("GEMINI_MODEL", "gemini-flash-lite-latest"),
                 openai_api_key=os.environ.get("OPENAI_API_KEY", ""),
                 gemini_model=os.environ.get("GEMINI_MODEL", "gemini-flash-lite-latest"),
             )
