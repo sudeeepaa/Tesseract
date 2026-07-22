@@ -104,8 +104,8 @@ for path, sub_app in a2a_mounts.items():
 # (Vite auto-increments the port when 5173 is busy → 5174, 5175 …).
 app.add_middleware(
     CORSMiddleware,
-    allow_origin_regex=r"https?://(localhost|127\.0\.0\.1)(:\d+)?",
-    allow_credentials=True,
+    allow_origins=["*"],
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
