@@ -4,6 +4,7 @@ import { AppProviders } from './state/app';
 import { Shell } from './components/Shell';
 
 import { HomeView } from './views/Home';
+import { MeetingsView } from './views/Meetings';
 import { DecisionsView } from './views/Decisions';
 import { ActionItemsView } from './views/ActionItems';
 import { AskView } from './views/Ask';
@@ -17,6 +18,7 @@ export const App: React.FC = () => (
       <Shell>
         <Routes>
           <Route path="/" element={<HomeView />} />
+          <Route path="/meetings" element={<MeetingsView />} />
           <Route path="/decisions" element={<DecisionsView />} />
           <Route path="/tasks" element={<ActionItemsView />} />
           <Route path="/ask" element={<AskView />} />

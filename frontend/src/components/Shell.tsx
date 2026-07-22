@@ -2,13 +2,14 @@ import React, { useEffect, useState } from 'react';
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import {
   Home, ClipboardCheck, ListTodo, MessageCircleQuestion, Share2,
-  Settings, Plus, Bell, Sun, Moon, Menu,
+  Settings, Plus, Bell, Sun, Moon, Menu, CalendarDays,
 } from 'lucide-react';
 import { useAppData, useTheme } from '../state/app';
 import { SystemStatus } from './SystemStatus';
 
 const NAV = [
   { to: '/',          label: 'Command Center', icon: Home,                  end: true },
+  { to: '/meetings',  label: 'Meetings',       icon: CalendarDays },
   { to: '/decisions', label: 'Decisions',      icon: ClipboardCheck },
   { to: '/tasks',     label: 'Action items',   icon: ListTodo },
   { to: '/ask',       label: 'Ask',            icon: MessageCircleQuestion },
@@ -16,9 +17,9 @@ const NAV = [
 ];
 
 const TITLES: Record<string, string> = {
-  '/': 'Command Center', '/decisions': 'Decisions', '/tasks': 'Action items',
-  '/ask': 'Ask your meetings', '/map': 'Relationships', '/add': 'Add a meeting',
-  '/settings': 'Settings',
+  '/': 'Command Center', '/meetings': 'Meetings', '/decisions': 'Decisions',
+  '/tasks': 'Action items', '/ask': 'Ask your meetings', '/map': 'Relationships',
+  '/add': 'Add a meeting', '/settings': 'Settings',
 };
 
 const Sidebar: React.FC<{ open: boolean }> = ({ open }) => {

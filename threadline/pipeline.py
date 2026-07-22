@@ -386,11 +386,13 @@ class AgentPipeline:
         meeting_id: str | None = None,
         content: bytes | None = None,
     ) -> Generator[StageEvent, None, PipelineResult]:
-        """Delegate to ManagerAgentRunner.run_streaming()."""
+        """Delegate to ManagerAgentRunner, then cache a per-meeting summary."""
         source = Path(source) if isinstance(source, str) else source
         if meeting_id is None:
             meeting_id = source.stem
-        return self._manager.run_streaming(str(source), meeting_id, content)
+        result = yield from self._manager.run_streaming(str(source), meeting_id, content)
+        self._cache_meeting_summary(meeting_id, result)
+        return result
 
     def run_sync(
         self,
@@ -398,11 +400,38 @@ class AgentPipeline:
         meeting_id: str | None = None,
         content: bytes | None = None,
     ) -> PipelineResult:
-        """Delegate to ManagerAgentRunner.run_sync()."""
-        source = Path(source) if isinstance(source, str) else source
-        if meeting_id is None:
-            meeting_id = source.stem
-        return self._manager.run_sync(str(source), meeting_id, content)
+        """Drain run_streaming() synchronously (so the summary is cached too)."""
+        gen = self.run_streaming(source, meeting_id, content)
+        result: PipelineResult | None = None
+        try:
+            while True:
+                next(gen)
+        except StopIteration as stop:
+            result = stop.value
+        return result or PipelineResult(meeting_id=str(meeting_id or source), overall_success=False)
+
+    def _cache_meeting_summary(self, meeting_id: str, result) -> None:
+        """
+        Generate the meeting summary ONCE at ingestion and store it on the meeting,
+        so the /meetings summary endpoint serves it without re-calling the LLM.
+        Best-effort: any failure is logged and skipped (never breaks ingestion).
+        """
+        extraction = getattr(result, "extraction_result", None)
+        if not extraction or not getattr(result, "graph_success", False):
+            return
+        try:
+            from threadline.config import get_settings
+            from threadline.summarizer import summarize_meeting
+
+            meetings = {m.id: m for m in self.graph_store.get_all_meetings()}
+            title = meetings[meeting_id].title if meeting_id in meetings else meeting_id
+            topics = [t.name for t in getattr(extraction, "topics", [])]
+            summary = summarize_meeting(
+                title, extraction.decisions, extraction.action_items, topics, get_settings()
+            )
+            self.graph_store.set_meeting_summary(meeting_id, summary)
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("Could not cache meeting summary for %s: %s", meeting_id, exc)
 
 
 # ─────────────────────────────────────────────────────────────────────────────

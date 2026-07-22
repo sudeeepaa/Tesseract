@@ -106,6 +106,29 @@ export interface SearchResponse {
   answer?: string | null;
 }
 
+export interface MeetingSummary {
+  id: string;
+  title: string;
+  recorded_at?: string | null;
+  ingested_at?: string | null;
+  decision_count: number;
+  action_item_count: number;
+  topic_count: number;
+  preview?: string | null;
+  summary?: string | null;   // cached at ingestion; present without a second call
+}
+
+export interface MeetingsResponse {
+  meetings: MeetingSummary[];
+  count: number;
+}
+
+export interface MeetingSummaryResponse {
+  meeting_id: string;
+  title: string;
+  summary_markdown: string;
+}
+
 export interface BackendStatus {
   neo4j: {
     connected: boolean;
@@ -162,6 +185,18 @@ export const apiClient = {
       body: JSON.stringify({ query, top_k: topK })
     });
     if (!res.ok) throw new Error('Failed to execute search');
+    return res.json();
+  },
+
+  async listMeetings(): Promise<MeetingsResponse> {
+    const res = await fetch(`${API_BASE_URL}/api/v1/meetings`);
+    if (!res.ok) throw new Error('Failed to load meetings');
+    return res.json();
+  },
+
+  async getMeetingSummary(meetingId: string): Promise<MeetingSummaryResponse> {
+    const res = await fetch(`${API_BASE_URL}/api/v1/meetings/${encodeURIComponent(meetingId)}/summary`);
+    if (!res.ok) throw new Error('Failed to generate meeting summary');
     return res.json();
   },
 

@@ -25,6 +25,7 @@ from threadline.models import (
     GraphEdge,
     GraphNode,
     GraphSnapshot,
+    MeetingSummary,
     MeetingTranscript,
     NodeType,
     SupersessionRecord,
@@ -53,6 +54,8 @@ class GraphStore(Protocol):
     def get_all_conflicts(self) -> list[ConflictRecord]: ...
     def get_all_topics(self) -> list[str]: ...
     def get_meeting_count(self) -> int: ...
+    def get_all_meetings(self) -> list[MeetingSummary]: ...
+    def set_meeting_summary(self, meeting_id: str, summary: str) -> None: ...
     def get_graph_snapshot(self) -> GraphSnapshot: ...
     def get_status(self) -> dict[str, Any]: ...
     def purge_person(self, person_name: str) -> dict[str, Any]: ...
@@ -86,6 +89,8 @@ class InMemoryGraphStore:
 
     def __init__(self) -> None:
         self._meetings:      dict[str, MeetingTranscript]  = {}
+        self._meeting_ingested_at: dict[str, datetime]     = {}
+        self._meeting_summaries: dict[str, str]            = {}
         self._decisions:     dict[str, Decision]           = {}
         self._action_items:  dict[str, ActionItem]         = {}
         self._entities:      dict[str, Entity]             = {}
@@ -102,6 +107,7 @@ class InMemoryGraphStore:
     ) -> dict[str, Any]:
         meeting_id = transcript.id
         self._meetings[meeting_id] = transcript
+        self._meeting_ingested_at.setdefault(meeting_id, _now())
 
         new_nodes   = 0
         new_edges   = 0
@@ -217,6 +223,39 @@ class InMemoryGraphStore:
 
     def get_meeting_count(self) -> int:
         return len(self._meetings)
+
+    def set_meeting_summary(self, meeting_id: str, summary: str) -> None:
+        self._meeting_summaries[meeting_id] = summary
+
+    def get_all_meetings(self) -> list[MeetingSummary]:
+        dec_by_meeting: dict[str, int] = defaultdict(int)
+        for d in self._decisions.values():
+            dec_by_meeting[d.source_meeting_id] += 1
+        ai_by_meeting: dict[str, int] = defaultdict(int)
+        for ai in self._action_items.values():
+            ai_by_meeting[ai.source_meeting_id] += 1
+        topic_by_meeting: dict[str, int] = defaultdict(int)
+        for t in self._topics.values():
+            for mid in getattr(t, "source_meeting_ids", []):
+                topic_by_meeting[mid] += 1
+
+        summaries = [
+            MeetingSummary(
+                id=m.id,
+                title=m.meeting_title or m.id,
+                recorded_at=m.recorded_at,
+                ingested_at=self._meeting_ingested_at.get(m.id),
+                decision_count=dec_by_meeting.get(m.id, 0),
+                action_item_count=ai_by_meeting.get(m.id, 0),
+                topic_count=topic_by_meeting.get(m.id, 0),
+                preview=(m.text or "").strip().replace("\n", " ")[:160] or None,
+                summary=self._meeting_summaries.get(m.id),
+            )
+            for m in self._meetings.values()
+        ]
+        # Chronological: recorded time if known, else ingestion time, else id order.
+        summaries.sort(key=lambda s: (s.recorded_at or s.ingested_at or _now(), s.id))
+        return summaries
 
     def get_graph_snapshot(self) -> GraphSnapshot:
         nodes: list[GraphNode] = []
