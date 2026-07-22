@@ -16,7 +16,7 @@ import logging
 import re
 from typing import Optional, Tuple
 
-from threadline.models import ActionItem, Decision, SearchResult
+from threadline.models import ActionItem, ConflictRecord, Decision, SearchResult
 
 logger = logging.getLogger(__name__)
 
@@ -117,6 +117,97 @@ _MEETING_SYSTEM = (
     "bullet list and an '**Action items**' bullet list (owner in parentheses). Omit a "
     "section if it has no items. Be factual and concise — do not invent anything."
 )
+
+
+_SUGGEST_SYSTEM = (
+    "You are Tesseract, an AI chief of staff. Given a snapshot of what a team's meetings "
+    "actually contain, propose short questions a busy stakeholder would ask to explore "
+    "THESE specific meetings. Each question must be answerable from the decisions/topics "
+    "shown, be specific (name the real tool, decision, or topic), and stay under 12 words. "
+    "Write in natural business language — never reference raw meeting IDs like 'meeting_01'. "
+    'Respond with ONLY a JSON array of 4 question strings, e.g. ["...", "..."].'
+)
+
+
+def _parse_questions(raw: str) -> list[str]:
+    cleaned = re.sub(r"^```(?:json)?\s*|\s*```$", "", (raw or "").strip())
+    try:
+        arr = json.loads(cleaned)
+        if isinstance(arr, dict):  # tolerate {"questions": [...]}
+            arr = arr.get("questions", [])
+        out = [str(q).strip() for q in arr if str(q).strip()]
+        return out[:6]
+    except Exception:
+        return []
+
+
+def _fallback_questions(decisions, topics, conflicts) -> list[str]:
+    qs: list[str] = []
+    for t in topics[:2]:
+        qs.append(f"What was decided about {t.lower()}?")
+    if conflicts:
+        qs.append("Which decisions need my attention?")
+    if decisions:
+        qs.append("What are the key decisions so far?")
+    if not qs:
+        qs = ["What decisions have been made?", "What are the open action items?"]
+    # de-dup, keep order
+    seen, uniq = set(), []
+    for q in qs:
+        if q.lower() not in seen:
+            seen.add(q.lower()); uniq.append(q)
+    return uniq[:4]
+
+
+def suggest_questions(
+    decisions: list[Decision],
+    topics: list[str],
+    conflicts: list[ConflictRecord],
+    settings,
+) -> list[str]:
+    """
+    Propose data-grounded example questions for the Ask box. Uses the LLM when
+    available, otherwise a deterministic fallback derived from topics/decisions.
+    Returns [] when there's no content to ground questions in.
+    """
+    if not decisions and not topics:
+        return []
+
+    dec = "; ".join(d.text for d in decisions[:12]) or "(none)"
+    tps = ", ".join(topics[:12]) or "(none)"
+    cfs = "; ".join((c.description or c.fact_b_text or "") for c in conflicts[:5]) or "(none)"
+    prompt = f"DECISIONS: {dec}\nTOPICS: {tps}\nOPEN CONFLICTS: {cfs}\n\nJSON:"
+
+    backend = settings.effective_extractor_backend.value
+    try:
+        if backend == "gemini" and settings.gemini_api_key:
+            import google.generativeai as genai
+            genai.configure(api_key=settings.gemini_api_key)
+            model = genai.GenerativeModel(settings.gemini_model)
+            resp = model.generate_content(
+                f"{_SUGGEST_SYSTEM}\n\n{prompt}", request_options={"timeout": 30}
+            )
+            qs = _parse_questions(resp.text or "")
+            if qs:
+                return qs
+        elif backend == "openai" and settings.openai_api_key:
+            from openai import OpenAI
+            client = OpenAI(api_key=settings.openai_api_key)
+            resp = client.chat.completions.create(
+                model=settings.openai_model,
+                messages=[
+                    {"role": "system", "content": _SUGGEST_SYSTEM},
+                    {"role": "user", "content": prompt},
+                ],
+                temperature=0.4,
+            )
+            qs = _parse_questions(resp.choices[0].message.content or "")
+            if qs:
+                return qs
+    except Exception as exc:
+        logger.warning("Question suggestion failed (%s) — using fallback", exc)
+
+    return _fallback_questions(decisions, topics, conflicts)
 
 
 def _fallback_meeting_summary(title, decisions, action_items, topics) -> str:

@@ -1,17 +1,18 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Search, Loader2, CornerDownLeft, Sparkles } from 'lucide-react';
 import { apiClient, SearchResult } from '../api/client';
 import { SourceBadge } from '../components/SourceBadge';
 import { EmptyState } from '../components/ui';
 
-const SUGGESTIONS = [
-  'What did we decide about authentication?',
-  'Why did we move off PostgreSQL?',
-  'Anything about GDPR or EU data?',
-  'What are the deadlines?',
+// Sensible defaults shown only until the data-grounded suggestions load.
+const FALLBACK_SUGGESTIONS = [
+  'What decisions have been made?',
+  'What needs my attention?',
+  'What are the open action items?',
 ];
 
 export const AskView: React.FC = () => {
+  const [suggestions, setSuggestions] = useState<string[]>(FALLBACK_SUGGESTIONS);
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<SearchResult[]>([]);
   const [answer, setAnswer] = useState<string | null>(null);
@@ -34,6 +35,13 @@ export const AskView: React.FC = () => {
   // Only show the (nearest-neighbour) match cards when the answer is actually
   // grounded in the meetings — otherwise they're misleading weak matches.
   const showMatches = grounded && results.length > 0;
+
+  // Load data-grounded example questions (cached server-side until data changes).
+  useEffect(() => {
+    apiClient.getSearchSuggestions()
+      .then((qs) => { if (qs.length) setSuggestions(qs); })
+      .catch(() => { /* keep fallbacks */ });
+  }, []);
 
   return (
     <div className="page stack-lg">
@@ -59,7 +67,7 @@ export const AskView: React.FC = () => {
         <div className="col" style={{ gap: 8 }}>
           <div className="muted" style={{ fontSize: 13 }}>Try asking</div>
           <div className="row wrap" style={{ gap: 8 }}>
-            {SUGGESTIONS.map((s) => (
+            {suggestions.map((s) => (
               <button key={s} className="btn btn-outline btn-sm" onClick={() => run(s)}>{s}</button>
             ))}
           </div>

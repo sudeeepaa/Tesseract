@@ -189,6 +189,12 @@ export const apiClient = {
     return res.json();
   },
 
+  async getSearchSuggestions(): Promise<string[]> {
+    const res = await fetch(`${API_BASE_URL}/api/v1/search/suggestions`);
+    if (!res.ok) throw new Error('Failed to load suggestions');
+    return (await res.json()).questions ?? [];
+  },
+
   async listMeetings(): Promise<MeetingsResponse> {
     const res = await fetch(`${API_BASE_URL}/api/v1/meetings`);
     if (!res.ok) throw new Error('Failed to load meetings');
