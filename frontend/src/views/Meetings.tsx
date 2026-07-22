@@ -5,8 +5,9 @@ import {
   ChevronDown, Loader2, Plus, Trash2,
 } from 'lucide-react';
 import { apiClient, MeetingSummary } from '../api/client';
-import { EmptyState, SkeletonLines } from '../components/ui';
+import { EmptyState, SkeletonLines, ConfirmDialog } from '../components/ui';
 import { meetingLabel } from '../components/SourceBadge';
+import { useToast } from '../state/app';
 
 function fmtDate(iso?: string | null): string | null {
   if (!iso) return null;
@@ -54,10 +55,12 @@ const MiniMarkdown: React.FC<{ text: string }> = ({ text }) => {
 };
 
 const MeetingCard: React.FC<{ m: MeetingSummary; onDelete: () => void }> = ({ m, onDelete }) => {
+  const { notify } = useToast();
   const [open, setOpen] = useState(false);
   const [summary, setSummary] = useState<string | null>(m.summary ?? null);
   const [loading, setLoading] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const date = fmtDate(m.recorded_at) || fmtDate(m.ingested_at);
 
   const loadSummary = useCallback(async () => {
@@ -86,17 +89,15 @@ const MeetingCard: React.FC<{ m: MeetingSummary; onDelete: () => void }> = ({ m,
   }
 
   async function handleDelete() {
-    if (!window.confirm(`Are you sure you want to delete this meeting and permanently purge all its decisions, tasks, and history from Neo4j & Qdrant?`)) {
-      return;
-    }
     setDeleting(true);
     try {
       await apiClient.deleteMeeting(m.id);
       onDelete();
     } catch (e: any) {
-      alert(e.message || 'Failed to delete meeting');
+      notify(e.message || 'Failed to delete meeting', 'error');
     } finally {
       setDeleting(false);
+      setShowDeleteConfirm(false);
     }
   }
 
@@ -121,7 +122,7 @@ const MeetingCard: React.FC<{ m: MeetingSummary; onDelete: () => void }> = ({ m,
         <div className="row" style={{ gap: 8, flex: 'none', alignItems: 'center' }}>
           <button 
             className="btn btn-outline btn-sm" 
-            onClick={handleDelete} 
+            onClick={() => setShowDeleteConfirm(true)} 
             disabled={deleting} 
             title="Delete meeting & history"
             style={{ 
@@ -153,6 +154,17 @@ const MeetingCard: React.FC<{ m: MeetingSummary; onDelete: () => void }> = ({ m,
           )}
         </div>
       )}
+
+      <ConfirmDialog
+        open={showDeleteConfirm}
+        danger
+        busy={deleting}
+        title="Delete this meeting?"
+        message={<>This will <strong>permanently delete</strong> this meeting and purge all its decisions, tasks, and history. This action cannot be undone.</>}
+        confirmLabel="Delete"
+        onConfirm={handleDelete}
+        onCancel={() => setShowDeleteConfirm(false)}
+      />
     </div>
   );
 };
