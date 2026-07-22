@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { ClipboardCheck, Sparkles, ChevronDown, ArrowRightLeft, AlertTriangle } from 'lucide-react';
-import { apiClient, BriefingOutput, Decision, MeetingSummary } from '../api/client';
+import { ClipboardCheck, Sparkles, ChevronDown, ArrowRightLeft, AlertTriangle, ShieldCheck } from 'lucide-react';
+import { apiClient, BriefingOutput, ConflictRecord, Decision, MeetingSummary } from '../api/client';
 import { StatusPill, EmptyState, SkeletonLines } from '../components/ui';
 import { meetingLabel } from '../components/SourceBadge';
 
@@ -12,11 +12,23 @@ function fmtDate(iso?: string | null): string | null {
   return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
 }
 
-const DecisionRow: React.FC<{ d: Decision }> = ({ d }) => {
+function confidenceColor(score: number): string {
+  if (score >= 0.8) return 'var(--red)';
+  if (score >= 0.6) return 'var(--amber)';
+  return 'var(--green)';
+}
+
+const DecisionRow: React.FC<{ d: Decision; conflicts: ConflictRecord[] }> = ({ d, conflicts }) => {
   const [open, setOpen] = useState(false);
   const muted = d.status === 'superseded' || d.status === 'reversed';
   const hasDetail = !!(d.rationale || d.owner || d.supersedes_decision_id ||
     (d.contradicts_decision_ids && d.contradicts_decision_ids.length));
+
+  const relatedConflicts = conflicts.filter(
+    (c) => c.fact_a_id === d.id || c.fact_b_id === d.id ||
+           (d.contradicts_decision_ids ?? []).includes(c.fact_a_id) ||
+           (d.contradicts_decision_ids ?? []).includes(c.fact_b_id)
+  );
 
   return (
     <div className="card card-pad" style={{ opacity: muted ? 0.78 : 1 }}>
@@ -58,7 +70,41 @@ const DecisionRow: React.FC<{ d: Decision }> = ({ d }) => {
               <AlertTriangle size={14} /> Conflicts with {d.contradicts_decision_ids.length} other decision{d.contradicts_decision_ids.length === 1 ? '' : 's'}
             </div>
           )}
-          {!hasDetail && <div className="muted" style={{ fontSize: 13 }}>No additional details were captured for this decision.</div>}
+
+          {relatedConflicts.length > 0 && (
+            <div style={{ marginTop: 4, borderTop: '1px solid var(--border)', paddingTop: 10 }} className="stack-sm">
+              <div className="row" style={{ gap: 6, marginBottom: 4 }}>
+                <ShieldCheck size={13} color="var(--accent)" />
+                <span style={{ fontSize: 11.5, fontWeight: 600, letterSpacing: '0.04em', textTransform: 'uppercase', color: 'var(--text-muted)' }}>Explainability</span>
+              </div>
+              {relatedConflicts.map((c) => (
+                <div key={c.id} style={{ background: 'rgba(255,255,255,0.04)', borderRadius: 7, padding: '9px 11px' }} className="stack-sm">
+                  {c.confidence != null && (
+                    <div className="row" style={{ gap: 8, alignItems: 'center' }}>
+                      <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Conflict confidence</span>
+                      <span style={{
+                        fontSize: 12.5, fontWeight: 700,
+                        color: confidenceColor(c.confidence),
+                        background: `color-mix(in srgb, ${confidenceColor(c.confidence)} 14%, transparent)`,
+                        padding: '1px 7px', borderRadius: 20,
+                      }}>{Math.round(c.confidence * 100)}%</span>
+                      {c.confidence >= 0.6 && <span style={{ fontSize: 11, color: 'var(--amber)' }}>⚠ Escalated</span>}
+                    </div>
+                  )}
+                  {c.reasoning && (
+                    <div style={{ fontSize: 13, lineHeight: 1.55, color: 'var(--text-2)', fontStyle: 'italic' }}>
+                      "{c.reasoning}"
+                    </div>
+                  )}
+                  {!c.reasoning && !c.confidence && (
+                    <div className="muted" style={{ fontSize: 12.5 }}>{c.description}</div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+
+          {!hasDetail && relatedConflicts.length === 0 && <div className="muted" style={{ fontSize: 13 }}>No additional details were captured for this decision.</div>}
         </div>
       )}
     </div>
@@ -68,13 +114,19 @@ const DecisionRow: React.FC<{ d: Decision }> = ({ d }) => {
 export const DecisionsView: React.FC = () => {
   const [briefing, setBriefing] = useState<BriefingOutput | null>(null);
   const [meetings, setMeetings] = useState<MeetingSummary[]>([]);
+  const [conflicts, setConflicts] = useState<ConflictRecord[]>([]);
   const [loading, setLoading] = useState(true);
 
   const load = useCallback(async () => {
     try {
-      const [b, m] = await Promise.all([apiClient.getBriefing(), apiClient.listMeetings()]);
+      const [b, m, cr] = await Promise.all([
+        apiClient.getBriefing(),
+        apiClient.listMeetings(),
+        apiClient.listConflicts(),
+      ]);
       setBriefing(b);
       setMeetings(m.meetings);
+      setConflicts(cr.conflicts);
     } catch { /* */ } finally { setLoading(false); }
   }, []);
   useEffect(() => { load(); const t = setInterval(load, 15000); return () => clearInterval(t); }, [load]);
@@ -124,7 +176,7 @@ export const DecisionsView: React.FC = () => {
               {date && <span className="muted" style={{ fontSize: 12.5 }}>{date}</span>}
             </div>
             <div className="stack-sm">
-              {items.map((d) => <DecisionRow key={d.id} d={d} />)}
+              {items.map((d) => <DecisionRow key={d.id} d={d} conflicts={conflicts} />)}
             </div>
           </section>
         );

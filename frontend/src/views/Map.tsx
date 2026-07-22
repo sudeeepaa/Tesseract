@@ -113,6 +113,26 @@ export const MapView: React.FC = () => {
   const linkColor = useCallback((l: any) => l.type === 'SUPERSEDES' ? COLORS.under_review : l.type === 'CONTRADICTS' ? COLORS.superseded : 'rgba(150,150,150,0.35)', []);
   const linkDash = useCallback((l: any) => l.type === 'SUPERSEDES' ? [4, 4] : l.type === 'CONTRADICTS' ? [2, 2] : undefined, []);
 
+  const linkCanvas = useCallback((link: any, ctx: CanvasRenderingContext2D, gs: number) => {
+    if (gs < 1.6) return; // only draw labels when zoomed in enough to be readable
+    const src = link.source, tgt = link.target;
+    if (!src || !tgt || typeof src.x !== 'number') return;
+    const mx = (src.x + tgt.x) / 2, my = (src.y + tgt.y) / 2;
+    const label = (link.type as string).replace(/_/g, ' ');
+    const fs = 9 / gs;
+    ctx.font = `600 ${fs}px sans-serif`;
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    const tw = ctx.measureText(label).width, px = 3 / gs, py = 1.5 / gs;
+    ctx.fillStyle = 'rgba(20,22,28,0.82)';
+    ctx.beginPath();
+    ctx.rect(mx - tw / 2 - px, my - fs / 2 - py, tw + px * 2, fs + py * 2);
+    ctx.fill();
+    ctx.fillStyle = link.type === 'SUPERSEDES' ? COLORS.under_review
+      : link.type === 'CONTRADICTS' ? COLORS.superseded
+      : 'rgba(180,180,180,0.9)';
+    ctx.fillText(label, mx, my);
+  }, []);
+
   return (
     <div style={{ padding: '24px 26px 26px', display: 'flex', flexDirection: 'column', gap: 14, height: 'calc(100vh - 49px)' }}>
       <header>
@@ -151,7 +171,7 @@ export const MapView: React.FC = () => {
               </button>
             </div>
             <ForceGraph2D ref={graphRef} width={dim.width} height={dim.height} graphData={data}
-              nodeRelSize={6} nodeCanvasObject={nodeCanvas}
+              nodeRelSize={6} nodeCanvasObject={nodeCanvas} linkCanvasObject={linkCanvas}
               linkColor={linkColor} linkLineDash={linkDash} linkWidth={(l: any) => (l.superseded ? 1.5 : 2)}
               linkDirectionalArrowLength={(l: any) => (l.type === 'SUPERSEDES' ? 6 : 0)} linkDirectionalArrowRelPos={0.5}
               onNodeClick={onNodeClick} onNodeHover={onHover} cooldownTicks={200} onEngineStop={onEngineStop}
