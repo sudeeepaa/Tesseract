@@ -3,7 +3,11 @@
  * Connects the React frontend to the FastAPI backend.
  */
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
+// VITE_API_BASE_URL may be a full URL (http://localhost:8000) in dev, or a bare
+// hostname injected by Render's Blueprint (fromService → property: host). Normalize
+// so a scheme-less host still becomes a valid https:// origin in production.
+const RAW_API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
+const API_BASE_URL = /^https?:\/\//.test(RAW_API_BASE) ? RAW_API_BASE : `https://${RAW_API_BASE}`;
 
 export interface Decision {
   id: string;

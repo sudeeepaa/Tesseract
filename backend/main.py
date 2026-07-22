@@ -100,11 +100,13 @@ for path, sub_app in a2a_mounts.items():
     logger.info(f"Mounted A2A app at {path}")
 
 # Configure CORS for frontend access.
-# Using allow_origin_regex so any localhost port works in dev
-# (Vite auto-increments the port when 5173 is busy → 5174, 5175 …).
+# allow_origin_regex covers: any localhost port in dev (Vite auto-increments the
+# port when 5173 is busy → 5174, 5175 …) and any Render static-site origin
+# (*.onrender.com) in production. Additional origins can be added via CORS_ORIGINS.
 app.add_middleware(
     CORSMiddleware,
-    allow_origin_regex=r"https?://(localhost|127\.0\.0\.1)(:\d+)?",
+    allow_origins=settings.cors_origins,
+    allow_origin_regex=r"https?://(localhost|127\.0\.0\.1)(:\d+)?|https://[A-Za-z0-9-]+\.onrender\.com",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
