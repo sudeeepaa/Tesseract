@@ -104,6 +104,7 @@ export interface SearchResult {
 export interface SearchResponse {
   results: SearchResult[];
   answer?: string | null;
+  grounded?: boolean;   // false → meetings don't cover the query; hide the matches
 }
 
 export interface MeetingSummary {

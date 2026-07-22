@@ -15,19 +15,25 @@ export const AskView: React.FC = () => {
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<SearchResult[]>([]);
   const [answer, setAnswer] = useState<string | null>(null);
+  const [grounded, setGrounded] = useState(true);
   const [loading, setLoading] = useState(false);
   const [searched, setSearched] = useState(false);
 
   async function run(q: string) {
     if (!q.trim()) return;
-    setLoading(true); setSearched(true); setQuery(q); setAnswer(null);
+    setLoading(true); setSearched(true); setQuery(q); setAnswer(null); setGrounded(true);
     try {
       const res = await apiClient.search(q);
       setResults(res.results);
       setAnswer(res.answer ?? null);
-    } catch { setResults([]); setAnswer(null); }
+      setGrounded(res.grounded !== false);
+    } catch { setResults([]); setAnswer(null); setGrounded(true); }
     finally { setLoading(false); }
   }
+
+  // Only show the (nearest-neighbour) match cards when the answer is actually
+  // grounded in the meetings — otherwise they're misleading weak matches.
+  const showMatches = grounded && results.length > 0;
 
   return (
     <div className="page stack-lg">
@@ -74,13 +80,21 @@ export const AskView: React.FC = () => {
             </span>
           </div>
           <div style={{ fontSize: 15, lineHeight: 1.55 }}>{answer}</div>
-          <div className="muted" style={{ fontSize: 12, marginTop: 10 }}>
-            Summarized from the {results.length} matching moment{results.length === 1 ? '' : 's'} below.
-          </div>
+          {showMatches && (
+            <div className="muted" style={{ fontSize: 12, marginTop: 10 }}>
+              Summarized from the {results.length} matching moment{results.length === 1 ? '' : 's'} below.
+            </div>
+          )}
         </div>
       )}
 
-      {searched && results.length > 0 && (
+      {searched && !loading && !grounded && results.length > 0 && (
+        <div className="muted" style={{ fontSize: 13 }}>
+          No strong matches — your meetings don't appear to cover this.
+        </div>
+      )}
+
+      {searched && showMatches && (
         <div className="stack-sm">
           {results.map((r, i) => {
             const pct = Math.round(r.score * 100);

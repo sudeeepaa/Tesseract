@@ -28,6 +28,7 @@ class SearchRequest(BaseModel):
 class SearchResponse(BaseModel):
     results: List[SearchResult]
     answer: Optional[str] = None   # LLM-synthesized answer grounded in `results` (None in mock mode)
+    grounded: bool = True          # False when the meetings don't actually cover the query
 
 @router.post("", response_model=SearchResponse)
 async def semantic_search(
@@ -39,12 +40,15 @@ async def semantic_search(
     Execute a semantic search query against indexed meeting facts.
     Returns ranked result objects carrying match scores and source metadata, plus a
     short LLM-synthesized answer grounded in those results (when an LLM is configured).
+    `grounded` is False when the LLM judges the meetings don't cover the query, so the
+    UI can suppress the (necessarily non-empty) nearest-neighbour matches.
     """
     results = vector_store.search(req.query, req.top_k)
 
     answer = None
+    grounded = True
     if req.summarize and results:
         # LLM call is blocking — run it off the event loop.
-        answer = await run_in_threadpool(summarize_answer, req.query, results, settings)
+        answer, grounded = await run_in_threadpool(summarize_answer, req.query, results, settings)
 
-    return SearchResponse(results=results, answer=answer)
+    return SearchResponse(results=results, answer=answer, grounded=grounded)

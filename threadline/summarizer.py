@@ -11,19 +11,25 @@ simply shows the matching facts, exactly as before.
 """
 from __future__ import annotations
 
+import json
 import logging
-from typing import Optional
+import re
+from typing import Optional, Tuple
 
 from threadline.models import ActionItem, Decision, SearchResult
 
 logger = logging.getLogger(__name__)
 
 _ANSWER_SYSTEM = (
-    "You are Tesseract, an AI chief of staff. Answer the user's question using ONLY "
-    "the meeting facts provided below — do not invent anything. Reply in 2-4 concise "
-    "sentences of plain business language, and mention the relevant decision or meeting "
-    "when it helps. If the facts don't actually answer the question, say so plainly "
-    "instead of guessing."
+    "You are Tesseract, an AI chief of staff searching a set of meeting records. "
+    "Using ONLY the meeting facts provided below — never outside knowledge — answer the "
+    "user's question in 2-4 concise sentences of plain business language, citing the "
+    "relevant decision or meeting when it helps.\n"
+    "Also judge whether those facts actually address the question. Respond with ONLY a "
+    'JSON object: {"grounded": true|false, "answer": "..."}.\n'
+    "Set \"grounded\" to false when the meetings do not really cover the question (an "
+    "off-topic or unanswerable query, e.g. general trivia). When it is false, make "
+    "\"answer\" a short note that the meetings don't cover this — do NOT describe yourself."
 )
 
 
@@ -34,22 +40,37 @@ def _build_prompt(query: str, results: list[SearchResult]) -> str:
         speaker = f", {r.speaker}" if r.speaker else ""
         lines.append(f"- ({ftype} · {r.meeting_id}{speaker}) {r.text}")
     facts = "\n".join(lines) if lines else "(no matching facts)"
-    return f"QUESTION:\n{query}\n\nRELEVANT MEETING FACTS:\n{facts}\n\nANSWER:"
+    return f"QUESTION:\n{query}\n\nMEETING FACTS:\n{facts}\n\nJSON:"
+
+
+def _parse_answer(raw: str) -> Tuple[Optional[str], bool]:
+    """Parse the {grounded, answer} JSON; fall back to raw text if it isn't JSON."""
+    cleaned = re.sub(r"^```(?:json)?\s*|\s*```$", "", (raw or "").strip())
+    try:
+        obj = json.loads(cleaned)
+        answer = (obj.get("answer") or "").strip() or None
+        grounded = bool(obj.get("grounded", True))
+        return answer, grounded
+    except Exception:
+        # Not JSON — treat the whole thing as the answer and assume grounded.
+        return (raw or "").strip() or None, True
 
 
 def summarize_answer(
     query: str,
     results: list[SearchResult],
     settings,
-) -> Optional[str]:
+) -> Tuple[Optional[str], bool]:
     """
     Synthesize a grounded natural-language answer from search hits.
 
-    Returns the answer text, or ``None`` when there's nothing to summarize or no
-    LLM backend is available (so callers can fall back to showing raw results).
+    Returns ``(answer, grounded)``. ``grounded`` is False when the meetings don't
+    actually cover the question, so callers can suppress the (weak) match list.
+    When no LLM backend is available, returns ``(None, True)`` so the UI shows the
+    raw results exactly as before.
     """
     if not query.strip() or not results:
-        return None
+        return None, False
 
     backend = settings.effective_extractor_backend.value
     prompt = _build_prompt(query, results)
@@ -63,7 +84,7 @@ def summarize_answer(
                 f"{_ANSWER_SYSTEM}\n\n{prompt}",
                 request_options={"timeout": 30},
             )
-            return (resp.text or "").strip() or None
+            return _parse_answer(resp.text or "")
 
         if backend == "openai" and settings.openai_api_key:
             from openai import OpenAI
@@ -75,15 +96,16 @@ def summarize_answer(
                     {"role": "user", "content": prompt},
                 ],
                 temperature=0.2,
+                response_format={"type": "json_object"},
             )
-            return (resp.choices[0].message.content or "").strip() or None
+            return _parse_answer(resp.choices[0].message.content or "")
 
-        # mock / no key → no synthesized answer, UI shows raw results.
-        return None
+        # mock / no key → no synthesized answer; UI shows raw results.
+        return None, True
 
     except Exception as exc:
         logger.warning("Search answer synthesis failed (%s) — returning results only", exc)
-        return None
+        return None, True
 
 
 # ── Per-meeting summary (for the meetings dashboard) ──────────────────────────
