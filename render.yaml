@@ -74,10 +74,8 @@ services:
         source: /*
         destination: /index.html
     envVars:
-      # Injected at build time: the backend's hostname (e.g. tesseract-api.onrender.com).
-      # client.ts prepends https:// when the value is scheme-less.
+      # The backend's public URL, baked into the Vite bundle at build time.
+      # Set explicitly (rather than fromService) because the backend service got a
+      # Render name suffix (-26l1); an explicit URL is unambiguous and reliable.
       - key: VITE_API_BASE_URL
-        fromService:
-          type: web
-          name: tesseract-api
-          property: host
+        value: https://tesseract-api-26l1.onrender.com
