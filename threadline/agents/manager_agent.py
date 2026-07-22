@@ -353,8 +353,7 @@ class ManagerAgentRunner:
             input_runner = InputAgentRunner(
                 gemini_api_key=os.environ.get("GEMINI_API_KEY", ""),
                 gemini_model=os.environ.get("GEMINI_MODEL", "gemini-flash-lite-latest"),
-                openai_api_key=os.environ.get("OPENAI_API_KEY", ""),
-                gemini_model=os.environ.get("GEMINI_MODEL", "gemini-flash-lite-latest"),
+                openai_api_key=os.environ.get("OPENAI_API_KEY", "")
             )
             transcript, is_audio = input_runner.ingest(source_path, meeting_id, content)
             yield emit(
