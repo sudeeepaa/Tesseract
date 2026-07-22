@@ -103,6 +103,7 @@ export interface SearchResult {
 
 export interface SearchResponse {
   results: SearchResult[];
+  answer?: string | null;
 }
 
 export interface BackendStatus {

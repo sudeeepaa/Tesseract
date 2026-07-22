@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Search, Loader2, CornerDownLeft } from 'lucide-react';
+import { Search, Loader2, CornerDownLeft, Sparkles } from 'lucide-react';
 import { apiClient, SearchResult } from '../api/client';
 import { SourceBadge } from '../components/SourceBadge';
 import { EmptyState } from '../components/ui';
@@ -14,14 +14,18 @@ const SUGGESTIONS = [
 export const AskView: React.FC = () => {
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<SearchResult[]>([]);
+  const [answer, setAnswer] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [searched, setSearched] = useState(false);
 
   async function run(q: string) {
     if (!q.trim()) return;
-    setLoading(true); setSearched(true); setQuery(q);
-    try { setResults((await apiClient.search(q)).results); }
-    catch { setResults([]); }
+    setLoading(true); setSearched(true); setQuery(q); setAnswer(null);
+    try {
+      const res = await apiClient.search(q);
+      setResults(res.results);
+      setAnswer(res.answer ?? null);
+    } catch { setResults([]); setAnswer(null); }
     finally { setLoading(false); }
   }
 
@@ -59,6 +63,21 @@ export const AskView: React.FC = () => {
       {searched && !loading && results.length === 0 && (
         <EmptyState icon={<Search size={22} />} title="Nothing matched"
           children={<>Try rephrasing, or ask about a different topic from your meetings.</>} />
+      )}
+
+      {searched && !loading && answer && (
+        <div className="card card-pad answer-card">
+          <div className="row" style={{ gap: 8, marginBottom: 8, alignItems: 'center' }}>
+            <Sparkles size={16} className="answer-icon" />
+            <span style={{ fontSize: 12.5, fontWeight: 600, letterSpacing: 0.2, textTransform: 'uppercase', color: 'var(--text-muted)' }}>
+              Answer
+            </span>
+          </div>
+          <div style={{ fontSize: 15, lineHeight: 1.55 }}>{answer}</div>
+          <div className="muted" style={{ fontSize: 12, marginTop: 10 }}>
+            Summarized from the {results.length} matching moment{results.length === 1 ? '' : 's'} below.
+          </div>
+        </div>
       )}
 
       {searched && results.length > 0 && (
