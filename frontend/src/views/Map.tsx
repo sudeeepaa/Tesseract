@@ -114,7 +114,12 @@ export const MapView: React.FC = () => {
   const linkDash = useCallback((l: any) => l.type === 'SUPERSEDES' ? [4, 4] : l.type === 'CONTRADICTS' ? [2, 2] : undefined, []);
 
   const linkCanvas = useCallback((link: any, ctx: CanvasRenderingContext2D, gs: number) => {
-    if (gs < 1.6) return; // only draw labels when zoomed in enough to be readable
+    // Only show text labels on key narrative edges (SUPERSEDES, CONTRADICTS) or when zoomed in closely / hovered / selected
+    const isKeyEdge = link.type === 'SUPERSEDES' || link.type === 'CONTRADICTS';
+    const isHovered = hoveredRef.current && (hoveredRef.current.id === link.source.id || hoveredRef.current.id === link.target.id);
+    const isSelected = selected && (selected.id === link.source.id || selected.id === link.target.id);
+
+    if (!isKeyEdge && !isHovered && !isSelected && gs < 3.2) return;
     const src = link.source, tgt = link.target;
     if (!src || !tgt || typeof src.x !== 'number') return;
     const mx = (src.x + tgt.x) / 2, my = (src.y + tgt.y) / 2;
@@ -123,15 +128,16 @@ export const MapView: React.FC = () => {
     ctx.font = `600 ${fs}px sans-serif`;
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     const tw = ctx.measureText(label).width, px = 3 / gs, py = 1.5 / gs;
-    ctx.fillStyle = 'rgba(20,22,28,0.82)';
+    ctx.fillStyle = 'rgba(20,22,28,0.85)';
     ctx.beginPath();
-    ctx.rect(mx - tw / 2 - px, my - fs / 2 - py, tw + px * 2, fs + py * 2);
+    if (ctx.roundRect) ctx.roundRect(mx - tw / 2 - px, my - fs / 2 - py, tw + px * 2, fs + py * 2, 2 / gs);
+    else ctx.rect(mx - tw / 2 - px, my - fs / 2 - py, tw + px * 2, fs + py * 2);
     ctx.fill();
     ctx.fillStyle = link.type === 'SUPERSEDES' ? COLORS.under_review
       : link.type === 'CONTRADICTS' ? COLORS.superseded
-      : 'rgba(180,180,180,0.9)';
+      : 'rgba(200,200,200,0.9)';
     ctx.fillText(label, mx, my);
-  }, []);
+  }, [selected]);
 
   return (
     <div style={{ padding: '24px 26px 26px', display: 'flex', flexDirection: 'column', gap: 14, height: 'calc(100vh - 49px)' }}>
@@ -172,6 +178,7 @@ export const MapView: React.FC = () => {
             </div>
             <ForceGraph2D ref={graphRef} width={dim.width} height={dim.height} graphData={data}
               nodeRelSize={6} nodeCanvasObject={nodeCanvas} linkCanvasObject={linkCanvas}
+              linkCanvasObjectMode={() => 'after'}
               linkColor={linkColor} linkLineDash={linkDash} linkWidth={(l: any) => (l.superseded ? 1.5 : 2)}
               linkDirectionalArrowLength={(l: any) => (l.type === 'SUPERSEDES' ? 6 : 0)} linkDirectionalArrowRelPos={0.5}
               onNodeClick={onNodeClick} onNodeHover={onHover} cooldownTicks={200} onEngineStop={onEngineStop}
