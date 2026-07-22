@@ -20,3 +20,5 @@ frontend/dist/
 frontend/.env
 # OS
 .DS_Store
+
+data/audio/
