@@ -1,0 +1,7 @@
+All of the signals and transcription, and some of the annotations, have been released publicly under the  Creative Commons Attribution 4.0 Licence (http://creativecommons.org/licenses/by/4.0). 
+
+	License text: CCBY4.0.txt
+
+Content of the download:
+
+	https://groups.inf.ed.ac.uk/ami/AMICorpusMirror//amicorpus/ES2002a/audio/ES2002a.Mix-Headset.wav
