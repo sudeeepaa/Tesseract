@@ -1,29 +1,47 @@
-import React, { useState } from 'react';
-import { Search, Loader2, CornerDownLeft } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
+import { Search, Loader2, CornerDownLeft, Sparkles } from 'lucide-react';
 import { apiClient, SearchResult } from '../api/client';
 import { SourceBadge } from '../components/SourceBadge';
 import { EmptyState } from '../components/ui';
 
-const SUGGESTIONS = [
-  'What did we decide about authentication?',
-  'Why did we move off PostgreSQL?',
-  'Anything about GDPR or EU data?',
-  'What are the deadlines?',
+// Sensible defaults shown only until the data-grounded suggestions load.
+const FALLBACK_SUGGESTIONS = [
+  'What decisions have been made?',
+  'What needs my attention?',
+  'What are the open action items?',
 ];
 
 export const AskView: React.FC = () => {
+  const [suggestions, setSuggestions] = useState<string[]>(FALLBACK_SUGGESTIONS);
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<SearchResult[]>([]);
+  const [answer, setAnswer] = useState<string | null>(null);
+  const [grounded, setGrounded] = useState(true);
   const [loading, setLoading] = useState(false);
   const [searched, setSearched] = useState(false);
 
   async function run(q: string) {
     if (!q.trim()) return;
-    setLoading(true); setSearched(true); setQuery(q);
-    try { setResults((await apiClient.search(q)).results); }
-    catch { setResults([]); }
+    setLoading(true); setSearched(true); setQuery(q); setAnswer(null); setGrounded(true);
+    try {
+      const res = await apiClient.search(q);
+      setResults(res.results);
+      setAnswer(res.answer ?? null);
+      setGrounded(res.grounded !== false);
+    } catch { setResults([]); setAnswer(null); setGrounded(true); }
     finally { setLoading(false); }
   }
+
+  // Only show the (nearest-neighbour) match cards when the answer is actually
+  // grounded in the meetings — otherwise they're misleading weak matches.
+  const showMatches = grounded && results.length > 0;
+
+  // Load data-grounded example questions (cached server-side until data changes).
+  useEffect(() => {
+    apiClient.getSearchSuggestions()
+      .then((qs) => { if (qs.length) setSuggestions(qs); })
+      .catch(() => { /* keep fallbacks */ });
+  }, []);
 
   return (
     <div className="page stack-lg">
@@ -49,7 +67,7 @@ export const AskView: React.FC = () => {
         <div className="col" style={{ gap: 8 }}>
           <div className="muted" style={{ fontSize: 13 }}>Try asking</div>
           <div className="row wrap" style={{ gap: 8 }}>
-            {SUGGESTIONS.map((s) => (
+            {suggestions.map((s) => (
               <button key={s} className="btn btn-outline btn-sm" onClick={() => run(s)}>{s}</button>
             ))}
           </div>
@@ -61,7 +79,30 @@ export const AskView: React.FC = () => {
           children={<>Try rephrasing, or ask about a different topic from your meetings.</>} />
       )}
 
-      {searched && results.length > 0 && (
+      {searched && !loading && answer && (
+        <div className="card card-pad answer-card">
+          <div className="row" style={{ gap: 8, marginBottom: 8, alignItems: 'center' }}>
+            <Sparkles size={16} className="answer-icon" />
+            <span style={{ fontSize: 12.5, fontWeight: 600, letterSpacing: 0.2, textTransform: 'uppercase', color: 'var(--text-muted)' }}>
+              Answer
+            </span>
+          </div>
+          <div style={{ fontSize: 15, lineHeight: 1.55 }}>{answer}</div>
+          {showMatches && (
+            <div className="muted" style={{ fontSize: 12, marginTop: 10 }}>
+              Summarized from the {results.length} matching moment{results.length === 1 ? '' : 's'} below.
+            </div>
+          )}
+        </div>
+      )}
+
+      {searched && !loading && !grounded && results.length > 0 && (
+        <div className="muted" style={{ fontSize: 13 }}>
+          No strong matches — your meetings don't appear to cover this.
+        </div>
+      )}
+
+      {searched && showMatches && (
         <div className="stack-sm">
           {results.map((r, i) => {
             const pct = Math.round(r.score * 100);

@@ -21,11 +21,13 @@ from threadline.models import (
     GraphEdge,
     GraphNode,
     GraphSnapshot,
+    MeetingSummary,
     MeetingTranscript,
     NodeType,
     SupersessionRecord,
     Topic,
     _make_id,
+    _now,
 )
 
 logger = logging.getLogger(__name__)
@@ -64,7 +66,8 @@ class Neo4jGraphStore:
             ON CREATE SET m.source_file = $source_file,
                           m.text = $text,
                           m.meeting_title = $meeting_title,
-                          m.recorded_at = $recorded_at
+                          m.recorded_at = $recorded_at,
+                          m.ingested_at = $ingested_at
             ON MATCH SET m.source_file = $source_file,
                          m.text = $text,
                          m.meeting_title = $meeting_title
@@ -74,6 +77,7 @@ class Neo4jGraphStore:
             text=transcript.text,
             meeting_title=transcript.meeting_title or meeting_id,
             recorded_at=transcript.recorded_at.isoformat() if transcript.recorded_at else None,
+            ingested_at=_now().isoformat(),
         )
 
         new_nodes = 0
@@ -496,6 +500,56 @@ class Neo4jGraphStore:
         with self.driver.session() as session:
             res = session.run("MATCH (m:Meeting) RETURN count(m) as count")
             return res.single()["count"]
+
+    def get_all_meetings(self) -> list[MeetingSummary]:
+        from datetime import datetime
+
+        def _parse(dt: Any):
+            if not dt:
+                return None
+            try:
+                return datetime.fromisoformat(str(dt))
+            except Exception:
+                return None
+
+        with self.driver.session() as session:
+            rows = session.run(
+                """
+                MATCH (m:Meeting)
+                OPTIONAL MATCH (d:Decision)-[:MENTIONED_IN]->(m)
+                OPTIONAL MATCH (a:ActionItem)-[:MENTIONED_IN]->(m)
+                OPTIONAL MATCH (t:Topic)-[:MENTIONED_IN]->(m)
+                RETURN m.id AS id, m.meeting_title AS title,
+                       m.recorded_at AS recorded_at, m.ingested_at AS ingested_at,
+                       m.text AS text, m.summary AS summary,
+                       count(DISTINCT d) AS decisions,
+                       count(DISTINCT a) AS actions,
+                       count(DISTINCT t) AS topics
+                ORDER BY coalesce(m.recorded_at, m.ingested_at, m.id), m.id
+                """
+            ).data()
+
+        return [
+            MeetingSummary(
+                id=r["id"],
+                title=r.get("title") or r["id"],
+                recorded_at=_parse(r.get("recorded_at")),
+                ingested_at=_parse(r.get("ingested_at")),
+                decision_count=r.get("decisions", 0),
+                action_item_count=r.get("actions", 0),
+                topic_count=r.get("topics", 0),
+                preview=((r.get("text") or "").strip().replace("\n", " ")[:160] or None),
+                summary=r.get("summary"),
+            )
+            for r in rows
+        ]
+
+    def set_meeting_summary(self, meeting_id: str, summary: str) -> None:
+        with self.driver.session() as session:
+            session.run(
+                "MATCH (m:Meeting {id: $id}) SET m.summary = $summary",
+                id=meeting_id, summary=summary,
+            )
 
     def get_graph_snapshot(self) -> GraphSnapshot:
         with self.driver.session() as session:

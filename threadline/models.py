@@ -378,3 +378,16 @@ class BriefingOutput(BaseModel):
     conflicts:     list[ConflictRecord] = Field(default_factory=list)
     topics:        list[str]         = Field(default_factory=list)
     markdown:      str               = ""
+
+
+class MeetingSummary(BaseModel):
+    """Per-meeting rollup for the meetings dashboard (counts + metadata)."""
+    id:                str
+    title:             str
+    recorded_at:       Optional[datetime] = None
+    ingested_at:       Optional[datetime] = None
+    decision_count:    int = 0
+    action_item_count: int = 0
+    topic_count:       int = 0
+    preview:           Optional[str] = None   # short snippet of the transcript
+    summary:           Optional[str] = None   # cached LLM summary (generated at ingestion)

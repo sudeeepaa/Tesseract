@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import io
 import logging
+import os
 import re
 from pathlib import Path
 from typing import Optional
@@ -41,11 +42,11 @@ class InputAgentRunner:
     def __init__(
         self,
         gemini_api_key: str = "",
-        gemini_model: str = "gemini-2.0-flash",
+        gemini_model: str = "gemini-flash-lite-latest",
         openai_api_key: str = "",
     ) -> None:
         self.gemini_api_key = gemini_api_key
-        self.gemini_model = gemini_model
+        self.gemini_model = gemini_model or os.environ.get("GEMINI_MODEL", "gemini-flash-lite-latest")
         self.openai_api_key = openai_api_key
 
     def ingest(

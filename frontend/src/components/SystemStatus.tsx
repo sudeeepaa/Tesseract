@@ -25,13 +25,13 @@ export const SystemStatus: React.FC<{ compact?: boolean }> = ({ compact }) => {
       <div className="row" title={
         !online ? 'The backend is not responding.'
         : tone === 'amber' ? 'Running with in-memory storage — great for demos, not saved permanently.'
-        : 'Connected to persistent memory (Qdrant + graph).'
+        : 'Connected to persistent memory (Neo4j graph + Qdrant vectors).'
       }>
         <span className="dot" style={{ background: color, boxShadow: `0 0 0 3px color-mix(in srgb, ${color} 18%, transparent)` }} />
         <span style={{ fontSize: 13, color: 'var(--text-2)', fontWeight: 500 }}>{label}</span>
       </div>
       {!compact && (
-        <div style={{ fontSize: 11.5, color: 'var(--text-muted)' }}>Powered by Qdrant&nbsp;+&nbsp;Lyzr</div>
+        <div style={{ fontSize: 11.5, color: 'var(--text-muted)' }}>Neo4j&nbsp;·&nbsp;Qdrant&nbsp;·&nbsp;Lyzr</div>
       )}
     </div>
   );

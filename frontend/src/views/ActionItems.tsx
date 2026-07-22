@@ -13,7 +13,7 @@ const Row: React.FC<{ a: ActionItem }> = ({ a }) => (
       </div>
       <div className="row wrap" style={{ gap: 14, marginTop: 5 }}>
         {a.assignee && <span className="muted row" style={{ gap: 4, fontSize: 12.5 }}><User size={12} />{a.assignee}</span>}
-        {a.due_date && <span className="muted row" style={{ gap: 4, fontSize: 12.5 }}><CalendarClock size={12} />{a.due_date}</span>}
+        {a.due_date && a.due_date !== 'null' && <span className="muted row" style={{ gap: 4, fontSize: 12.5 }}><CalendarClock size={12} />{a.due_date}</span>}
       </div>
     </div>
     <div className="row" style={{ gap: 8, flex: 'none' }}>
