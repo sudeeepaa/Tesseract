@@ -241,6 +241,15 @@ export const apiClient = {
     return res.json();
   },
 
+  async deleteMeeting(meetingId: string): Promise<any> {
+    const res = await fetch(
+      `${API_BASE_URL}/api/v1/meetings/${encodeURIComponent(meetingId)}`,
+      { method: 'DELETE' }
+    );
+    if (!res.ok) throw new Error('Failed to delete meeting');
+    return res.json();
+  },
+
   async seedSampleMeetings(): Promise<{ meetings_loaded: number }> {
     const res = await fetch(`${API_BASE_URL}/api/v1/demo/seed`, { method: 'POST' });
     if (!res.ok) throw new Error('Could not load the sample meetings');

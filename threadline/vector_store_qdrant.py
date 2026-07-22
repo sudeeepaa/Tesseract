@@ -244,3 +244,35 @@ class QdrantVectorStore:
                 "removed_vectors": 0,
                 "error": str(e)
             }
+
+    def delete_meeting(self, meeting_id: str) -> dict[str, Any]:
+        """Delete all points from Qdrant where source_meeting_id matches meeting_id."""
+        try:
+            self.verify_connectivity()
+            from qdrant_client.http import models as rest_models
+            
+            self.client.delete(
+                collection_name=self.collection_name,
+                points_selector=rest_models.Filter(
+                    must=[
+                        rest_models.FieldCondition(
+                            key="source_meeting_id",
+                            match=rest_models.MatchValue(value=meeting_id)
+                        )
+                    ]
+                )
+            )
+            return {
+                "status": "success",
+                "meeting_id": meeting_id,
+                "removed_vectors": "unknown_qdrant_cascade",
+            }
+        except Exception as e:
+            logger.error("Qdrant delete_meeting failed: %s", e)
+            return {
+                "status": "error",
+                "meeting_id": meeting_id,
+                "removed_vectors": 0,
+                "error": str(e)
+            }
+

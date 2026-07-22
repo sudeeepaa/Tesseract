@@ -10,9 +10,10 @@ from fastapi import APIRouter, Depends, HTTPException
 from fastapi.concurrency import run_in_threadpool
 from pydantic import BaseModel
 
-from backend.deps import get_graph_store, get_config_settings
+from backend.deps import get_graph_store, get_vector_store, get_config_settings
 from threadline.config import Settings
 from threadline.graph_store import GraphStore
+from threadline.vector_store import VectorStore
 from threadline.models import MeetingSummary
 from threadline.summarizer import summarize_meeting
 
@@ -76,3 +77,46 @@ async def meeting_summary(
     return MeetingSummaryResponse(
         meeting_id=meeting_id, title=meeting.title, summary_markdown=summary
     )
+
+
+@router.delete("/{meeting_id}")
+async def delete_meeting(
+    meeting_id: str,
+    graph_store: GraphStore = Depends(get_graph_store),
+    vector_store: VectorStore = Depends(get_vector_store)
+) -> dict:
+    """
+    Cascade delete meeting and all its details (decisions, action items,
+    conflicts, and vector embeddings) from both Neo4j/InMemory graph
+    and Qdrant/InMemory vector store.
+    """
+    logger.info("Meetings API: Cascade deleting meeting %r", meeting_id)
+    try:
+        # 1. Cascade delete in graph store (Neo4j or InMemory)
+        graph_stats = graph_store.delete_meeting(meeting_id)
+        if graph_stats.get("status") == "not_found":
+            raise HTTPException(
+                status_code=404,
+                detail=f"Meeting '{meeting_id}' not found in graph database."
+            )
+        
+        # 2. Cascade delete in vector store (Qdrant or InMemory)
+        vector_stats = vector_store.delete_meeting(meeting_id)
+        
+        return {
+            "status": "success",
+            "message": f"Successfully deleted meeting '{meeting_id}' and all associated history.",
+            "purged_records": {
+                "graph_store": graph_stats,
+                "vector_store": vector_stats
+            }
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("Meetings API: Deletion failed for %r: %s", meeting_id, e)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to execute meeting deletion cascading purge: {str(e)}"
+        )
+

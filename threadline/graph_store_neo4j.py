@@ -724,3 +724,97 @@ class Neo4jGraphStore:
             "updated_decisions": updated_decisions,
             "updated_action_items": updated_action_items,
         }
+
+    def delete_meeting(self, meeting_id: str) -> dict[str, Any]:
+        """Cascade-delete meeting and associated nodes in Neo4j."""
+        deleted_decisions = 0
+        deleted_action_items = 0
+        deleted_conflicts = 0
+        deleted_entities = 0
+        deleted_topics = 0
+        deleted_meetings = 0
+
+        with self.driver.session() as session:
+            # 1. Delete decisions belonging to this meeting
+            res_dec = session.run(
+                "MATCH (d:Decision) WHERE d.source_meeting_id = $meeting_id WITH d, count(d) as cnt DETACH DELETE d RETURN cnt",
+                meeting_id=meeting_id
+            )
+            val = res_dec.single()
+            if val:
+                deleted_decisions = val["cnt"]
+
+            # 2. Delete action items belonging to this meeting
+            res_ai = session.run(
+                "MATCH (a:ActionItem) WHERE a.source_meeting_id = $meeting_id WITH a, count(a) as cnt DETACH DELETE a RETURN cnt",
+                meeting_id=meeting_id
+            )
+            val = res_ai.single()
+            if val:
+                deleted_action_items = val["cnt"]
+
+            # 3. Delete conflicts belonging to this meeting
+            res_cf = session.run(
+                "MATCH (c:Conflict) WHERE c.meeting_a_id = $meeting_id OR c.meeting_b_id = $meeting_id OR c.resolution_meeting_id = $meeting_id WITH c, count(c) as cnt DETACH DELETE c RETURN cnt",
+                meeting_id=meeting_id
+            )
+            val = res_cf.single()
+            if val:
+                deleted_conflicts = val["cnt"]
+
+            # 4. Orphan Entity cleanup
+            res_ent = session.run(
+                """
+                MATCH (e:Entity)-[:MENTIONED_IN]->(m:Meeting {id: $meeting_id})
+                OPTIONAL MATCH (e)-[:MENTIONED_IN]->(other:Meeting)
+                WHERE other.id <> $meeting_id
+                WITH e, count(other) as other_count
+                WHERE other_count = 0
+                WITH e, count(e) as cnt
+                DETACH DELETE e
+                RETURN cnt
+                """,
+                meeting_id=meeting_id
+            )
+            val = res_ent.single()
+            if val:
+                deleted_entities = val["cnt"]
+
+            # 5. Orphan Topic cleanup
+            res_top = session.run(
+                """
+                MATCH (t:Topic)-[:MENTIONED_IN]->(m:Meeting {id: $meeting_id})
+                OPTIONAL MATCH (t)-[:MENTIONED_IN]->(other:Meeting)
+                WHERE other.id <> $meeting_id
+                WITH t, count(other) as other_count
+                WHERE other_count = 0
+                WITH t, count(t) as cnt
+                DETACH DELETE t
+                RETURN cnt
+                """,
+                meeting_id=meeting_id
+            )
+            val = res_top.single()
+            if val:
+                deleted_topics = val["cnt"]
+
+            # 6. Delete Meeting itself
+            res_m = session.run(
+                "MATCH (m:Meeting {id: $meeting_id}) WITH m, count(m) as cnt DETACH DELETE m RETURN cnt",
+                meeting_id=meeting_id
+            )
+            val = res_m.single()
+            if val:
+                deleted_meetings = val["cnt"]
+
+        return {
+            "status": "success",
+            "meeting_id": meeting_id,
+            "deleted_decisions": deleted_decisions,
+            "deleted_action_items": deleted_action_items,
+            "deleted_conflicts": deleted_conflicts,
+            "deleted_entities": deleted_entities,
+            "deleted_topics": deleted_topics,
+            "deleted_meetings": deleted_meetings,
+        }
+

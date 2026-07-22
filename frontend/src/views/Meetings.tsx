@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
   CalendarDays, ClipboardCheck, ListTodo, Hash, Sparkles, Download,
-  ChevronDown, Loader2, Plus,
+  ChevronDown, Loader2, Plus, Trash2,
 } from 'lucide-react';
 import { apiClient, MeetingSummary } from '../api/client';
 import { EmptyState, SkeletonLines } from '../components/ui';
@@ -53,12 +53,11 @@ const MiniMarkdown: React.FC<{ text: string }> = ({ text }) => {
   return <div>{blocks}</div>;
 };
 
-const MeetingCard: React.FC<{ m: MeetingSummary }> = ({ m }) => {
+const MeetingCard: React.FC<{ m: MeetingSummary; onDelete: () => void }> = ({ m, onDelete }) => {
   const [open, setOpen] = useState(false);
-  // Summaries are generated once at ingestion, so they usually arrive with the
-  // list — use that directly and only fetch as a fallback for older meetings.
   const [summary, setSummary] = useState<string | null>(m.summary ?? null);
   const [loading, setLoading] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const date = fmtDate(m.recorded_at) || fmtDate(m.ingested_at);
 
   const loadSummary = useCallback(async () => {
@@ -86,6 +85,21 @@ const MeetingCard: React.FC<{ m: MeetingSummary }> = ({ m }) => {
     URL.revokeObjectURL(url);
   }
 
+  async function handleDelete() {
+    if (!window.confirm(`Are you sure you want to delete this meeting and permanently purge all its decisions, tasks, and history from Neo4j & Qdrant?`)) {
+      return;
+    }
+    setDeleting(true);
+    try {
+      await apiClient.deleteMeeting(m.id);
+      onDelete();
+    } catch (e: any) {
+      alert(e.message || 'Failed to delete meeting');
+    } finally {
+      setDeleting(false);
+    }
+  }
+
   return (
     <div className="card card-pad">
       <div className="between" style={{ alignItems: 'flex-start', gap: 12 }}>
@@ -104,10 +118,26 @@ const MeetingCard: React.FC<{ m: MeetingSummary }> = ({ m }) => {
             <div className="muted" style={{ fontSize: 13, marginTop: 10, lineHeight: 1.5 }}>{m.preview}…</div>
           )}
         </div>
-        <button className="btn btn-outline btn-sm" onClick={toggle} style={{ flex: 'none' }}>
-          <Sparkles size={14} /> Summary
-          <ChevronDown size={14} style={{ transform: open ? 'rotate(180deg)' : 'none', transition: 'transform .15s' }} />
-        </button>
+        <div className="row" style={{ gap: 8, flex: 'none', alignItems: 'center' }}>
+          <button 
+            className="btn btn-outline btn-sm" 
+            onClick={handleDelete} 
+            disabled={deleting} 
+            title="Delete meeting & history"
+            style={{ 
+              color: 'var(--red)', 
+              borderColor: 'rgba(239, 68, 68, 0.15)',
+              background: 'rgba(239, 68, 68, 0.03)',
+              padding: '6px 8px'
+            }}
+          >
+            {deleting ? <Loader2 size={14} className="spin" /> : <Trash2 size={14} />}
+          </button>
+          <button className="btn btn-outline btn-sm" onClick={toggle}>
+            <Sparkles size={14} /> Summary
+            <ChevronDown size={14} style={{ transform: open ? 'rotate(180deg)' : 'none', transition: 'transform .15s' }} />
+          </button>
+        </div>
       </div>
 
       {open && (
@@ -155,7 +185,7 @@ export const MeetingsView: React.FC = () => {
 
       {!loading && meetings.length > 0 && (
         <div className="stack-sm">
-          {meetings.map((m) => <MeetingCard key={m.id} m={m} />)}
+          {meetings.map((m) => <MeetingCard key={m.id} m={m} onDelete={load} />)}
         </div>
       )}
     </div>

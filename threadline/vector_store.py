@@ -43,6 +43,7 @@ class VectorStore(Protocol):
 
     def get_status(self) -> dict[str, Any]: ...
     def purge_person(self, person_name: str) -> dict[str, Any]: ...
+    def delete_meeting(self, meeting_id: str) -> dict[str, Any]: ...
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -210,6 +211,26 @@ class InMemoryVectorStore:
         self._embeddings = new_embeddings
         removed = initial_count - len(self._facts)
         return {
+            "removed_vectors": removed,
+        }
+
+    def delete_meeting(self, meeting_id: str) -> dict[str, Any]:
+        """Remove all indexed facts belonging to meeting_id."""
+        initial_count = len(self._facts)
+        new_facts = []
+        new_embeddings = []
+        
+        for fact, emb in zip(self._facts, self._embeddings):
+            if fact.source_meeting_id != meeting_id:
+                new_facts.append(fact)
+                new_embeddings.append(emb)
+                
+        self._facts = new_facts
+        self._embeddings = new_embeddings
+        removed = initial_count - len(self._facts)
+        return {
+            "status": "success",
+            "meeting_id": meeting_id,
             "removed_vectors": removed,
         }
 

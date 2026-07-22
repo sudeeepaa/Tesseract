@@ -59,6 +59,7 @@ class GraphStore(Protocol):
     def get_graph_snapshot(self) -> GraphSnapshot: ...
     def get_status(self) -> dict[str, Any]: ...
     def purge_person(self, person_name: str) -> dict[str, Any]: ...
+    def delete_meeting(self, meeting_id: str) -> dict[str, Any]: ...
     def get_conflict(self, conflict_id: str) -> ConflictRecord | None: ...
     def resolve_conflict(
         self,
@@ -425,6 +426,103 @@ class InMemoryGraphStore:
             "removed_entities": removed_entities,
             "updated_decisions": updated_decisions,
             "updated_action_items": updated_action_items,
+        }
+
+    def delete_meeting(self, meeting_id: str) -> dict[str, Any]:
+        """Cascade-delete the meeting and all decisions/actions/conflicts/orphaned entities."""
+        if meeting_id not in self._meetings:
+            return {"status": "not_found", "message": f"Meeting '{meeting_id}' not found"}
+
+        # Track what is deleted
+        deleted_decisions = 0
+        deleted_action_items = 0
+        deleted_conflicts = 0
+        deleted_entities = 0
+        deleted_topics = 0
+
+        # 1. Delete decisions belonging to this meeting
+        for d_id, d in list(self._decisions.items()):
+            if d.source_meeting_id == meeting_id:
+                del self._decisions[d_id]
+                deleted_decisions += 1
+
+        # 2. Delete action items belonging to this meeting
+        for a_id, a in list(self._action_items.items()):
+            if a.source_meeting_id == meeting_id:
+                del self._action_items[a_id]
+                deleted_action_items += 1
+
+        # 3. Delete conflicts belonging to this meeting
+        for c_id, c in list(self._conflicts.items()):
+            if c.meeting_a_id == meeting_id or c.meeting_b_id == meeting_id or c.resolution_meeting_id == meeting_id:
+                del self._conflicts[c_id]
+                deleted_conflicts += 1
+
+        # 4. Remove the meeting itself
+        del self._meetings[meeting_id]
+        if meeting_id in self._meeting_summaries:
+            del self._meeting_summaries[meeting_id]
+        if meeting_id in self._meeting_ingested_at:
+            del self._meeting_ingested_at[meeting_id]
+
+        # 5. Clean up edges matching meeting_id or deleted entities/topics
+        self._edges = [
+            edge for edge in self._edges
+            if edge[0] != meeting_id and edge[1] != meeting_id
+        ]
+
+        # 6. Orphan cleanup: delete entities and topics with no other meeting relationships
+        remaining_meeting_ids = set(self._meetings.keys())
+        
+        # Check which entities are still connected to any other meeting
+        active_entities = set()
+        for edge in self._edges:
+            # edge format is (source, target, type)
+            if edge[1] in remaining_meeting_ids:
+                active_entities.add(edge[0])
+            elif edge[0] in remaining_meeting_ids:
+                active_entities.add(edge[1])
+
+        for e_id in list(self._entities.keys()):
+            if e_id not in active_entities:
+                del self._entities[e_id]
+                deleted_entities += 1
+
+        # Check topics
+        active_topics = set()
+        for edge in self._edges:
+            if edge[1] in remaining_meeting_ids:
+                active_topics.add(edge[0])
+            elif edge[0] in remaining_meeting_ids:
+                active_topics.add(edge[1])
+
+        for t_id in list(self._topics.keys()):
+            if t_id not in active_topics:
+                del self._topics[t_id]
+                deleted_topics += 1
+
+        # Final edge sweep to clean up orphaned node edges
+        all_active_nodes = (
+            set(self._meetings.keys()) |
+            set(self._decisions.keys()) |
+            set(self._action_items.keys()) |
+            set(self._entities.keys()) |
+            set(self._topics.keys()) |
+            set(self._conflicts.keys())
+        )
+        self._edges = [
+            edge for edge in self._edges
+            if edge[0] in all_active_nodes and edge[1] in all_active_nodes
+        ]
+
+        return {
+            "status": "success",
+            "meeting_id": meeting_id,
+            "deleted_decisions": deleted_decisions,
+            "deleted_action_items": deleted_action_items,
+            "deleted_conflicts": deleted_conflicts,
+            "deleted_entities": deleted_entities,
+            "deleted_topics": deleted_topics,
         }
 
 
