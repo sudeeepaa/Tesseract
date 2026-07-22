@@ -41,7 +41,7 @@ class InputAgentRunner:
     def __init__(
         self,
         gemini_api_key: str = "",
-        gemini_model: str = "gemini-2.0-flash",
+        gemini_model: str = "gemini-flash-lite-latest",
         openai_api_key: str = "",
     ) -> None:
         self.gemini_api_key = gemini_api_key
