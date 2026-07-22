@@ -17,7 +17,7 @@ from threadline.models import (
 
 def test_in_memory_vector_store_lifecycle():
     store = InMemoryVectorStore()
-    store._use_hash_embed = True  # force fast hash fallback
+    store._embedder.resolved = "hash"  # force fast hash fallback
 
     f1 = ExtractedFact(id="f1", claim_text="Decide to use PostgreSQL", fact_type=FactType.decision, source_meeting_id="m1")
     f2 = ExtractedFact(id="f2", claim_text="Assign Dev to write tests", fact_type=FactType.action_item, source_meeting_id="m1")
@@ -49,7 +49,7 @@ def test_qdrant_vector_store_integration():
         collection_name="test_collection_threadline"
     )
     # Force fast hash embed for integration testing to prevent downloading large model files during testing
-    store._use_hash_embed = True
+    store._embedder.resolved = "hash"
 
     try:
         store.verify_connectivity()
@@ -100,7 +100,7 @@ def test_semantic_search_database_migration(transcript_02, mock_extractor):
     assert any(r.score > 0 for r in results)
     
     # If not using hash fallback, verify semantic relevance and high score
-    if not store._use_hash_embed:
+    if not store._embedder.using_hash_fallback:
         # Best matches should have high cosine similarity (> 0.5 after mapping)
         assert results[0].score > 0.5
         # Verify the top result is indeed related to the database/migration decisions/action items

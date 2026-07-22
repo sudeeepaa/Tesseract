@@ -92,52 +92,28 @@ class InMemoryVectorStore:
         self,
         embedding_model: str = "all-MiniLM-L6-v2",
         embedding_dim:   int = 384,
+        embedding_backend: str = "sentence_transformers",
+        embedding_api_key: str = "",
     ) -> None:
+        from threadline.embeddings import Embedder
         self._embedding_model = embedding_model
         self._embedding_dim   = embedding_dim
-        self._model           = None          # lazy-loaded
-        self._use_hash_embed  = False         # set True if ST unavailable
+        self._embedder = Embedder(
+            backend=embedding_backend,
+            model=embedding_model,
+            dim=embedding_dim,
+            api_key=embedding_api_key,
+        )
         self._facts:      list[ExtractedFact] = []
         self._embeddings: list[list[float]]   = []
 
     # ── Embedding ─────────────────────────────────────────────────────────────
 
-    def _load_model(self) -> None:
-        if self._model is not None or self._use_hash_embed:
-            return
-        import os
-        if os.environ.get("THREADLINE_TESTING") == "1":
-            self._use_hash_embed = True
-            logger.info("Test environment detected: forcing pseudo-embeddings fallback.")
-            return
-        try:
-            from sentence_transformers import SentenceTransformer
-            self._model = SentenceTransformer(self._embedding_model)
-            logger.debug("sentence-transformers model loaded: %s", self._embedding_model)
-        except ImportError:
-            logger.warning(
-                "sentence-transformers not installed; using hash-based embeddings. "
-                "Search results will not be semantically meaningful. "
-                "Install with: pip install sentence-transformers"
-            )
-            self._use_hash_embed = True
-        except Exception as exc:
-            logger.warning("Failed to load embedding model: %s — using hash fallback", exc)
-            self._use_hash_embed = True
-
     def _embed_single(self, text: str) -> list[float]:
-        self._load_model()
-        if self._use_hash_embed:
-            return _hash_embed(text, self._embedding_dim)
-        emb = self._model.encode([text], normalize_embeddings=True)
-        return emb[0].tolist()
+        return self._embedder.embed_one(text, task="query")
 
     def _embed_batch(self, texts: list[str]) -> list[list[float]]:
-        self._load_model()
-        if self._use_hash_embed:
-            return [_hash_embed(t, self._embedding_dim) for t in texts]
-        embs = self._model.encode(texts, normalize_embeddings=True, batch_size=64)
-        return [e.tolist() for e in embs]
+        return self._embedder.embed(texts, task="document")
 
     # ── Write ─────────────────────────────────────────────────────────────────
 
@@ -190,7 +166,7 @@ class InMemoryVectorStore:
             "backend":      "memory",
             "vector_count": len(self._facts),
             "model":        self._embedding_model,
-            "using_hash_fallback": self._use_hash_embed,
+            "using_hash_fallback": self._embedder.using_hash_fallback,
         }
 
     def purge_person(self, person_name: str) -> dict[str, Any]:
@@ -239,18 +215,33 @@ class InMemoryVectorStore:
 # Factory
 # ─────────────────────────────────────────────────────────────────────────────
 
+def _embedding_params(settings) -> dict:
+    """Resolve embedding backend/model/key from settings (gemini vs local)."""
+    backend = getattr(settings, "embedding_backend", "sentence_transformers")
+    model = (
+        settings.gemini_embedding_model
+        if backend == "gemini"
+        else settings.embedding_model
+    )
+    return {
+        "embedding_model": model,
+        "embedding_dim": settings.embedding_dim,
+        "embedding_backend": backend,
+        "embedding_api_key": settings.gemini_api_key if backend == "gemini" else "",
+    }
+
+
 def create_vector_store(settings) -> VectorStore:
     """
     Returns a QdrantVectorStore if Qdrant is reachable; otherwise
     falls back to InMemoryVectorStore with a logged warning.
     (QdrantVectorStore implementation added Day 2.)
     """
+    emb = _embedding_params(settings)
+
     if settings.vector_backend.value == "memory":
         logger.info("Vector backend: InMemory (configured explicitly)")
-        return InMemoryVectorStore(
-            embedding_model=settings.embedding_model,
-            embedding_dim=settings.embedding_dim,
-        )
+        return InMemoryVectorStore(**emb)
 
     try:
         from threadline.vector_store_qdrant import QdrantVectorStore
@@ -258,8 +249,7 @@ def create_vector_store(settings) -> VectorStore:
             url=settings.qdrant_url,
             api_key=settings.qdrant_api_key,
             collection_name=settings.qdrant_collection,
-            embedding_model=settings.embedding_model,
-            embedding_dim=settings.embedding_dim,
+            **emb,
         )
         store.verify_connectivity()
         logger.info("Vector backend: Qdrant @ %s", settings.qdrant_url)
@@ -273,7 +263,4 @@ def create_vector_store(settings) -> VectorStore:
             exc,
         )
 
-    return InMemoryVectorStore(
-        embedding_model=settings.embedding_model,
-        embedding_dim=settings.embedding_dim,
-    )
+    return InMemoryVectorStore(**emb)

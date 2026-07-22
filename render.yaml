@@ -51,13 +51,16 @@ services:
         sync: false
       - key: QDRANT_API_KEY
         sync: false
+      # Fresh 768-dim collection for Gemini embeddings (the old one is 384-dim).
       - key: QDRANT_COLLECTION
-        value: threadline_facts
-      # ── Embeddings ──
-      - key: EMBEDDING_MODEL
-        value: all-MiniLM-L6-v2
+        value: threadline_facts_gemini
+      # ── Embeddings — hosted via Gemini (no local torch → fits 512 MB) ──
+      - key: EMBEDDING_BACKEND
+        value: gemini
+      - key: GEMINI_EMBEDDING_MODEL
+        value: models/gemini-embedding-001
       - key: EMBEDDING_DIM
-        value: "384"
+        value: "768"
       - key: LOG_LEVEL
         value: INFO
 

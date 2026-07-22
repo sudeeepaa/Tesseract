@@ -77,8 +77,13 @@ class Settings(BaseSettings):
     vector_backend:    VectorBackend = VectorBackend.qdrant
 
     # ── Embeddings ────────────────────────────────────────────────────────────
-    embedding_model: str = "all-MiniLM-L6-v2"
-    embedding_dim:   int = 384
+    # embedding_backend: gemini | sentence_transformers | hash
+    #   gemini → hosted API, no local torch model (production / low-memory).
+    #   sentence_transformers → local all-MiniLM-L6-v2 (rich local dev; default).
+    embedding_backend:      str = "sentence_transformers"
+    embedding_model:        str = "all-MiniLM-L6-v2"
+    embedding_dim:          int = 384
+    gemini_embedding_model: str = "models/gemini-embedding-001"  # used when backend=gemini (dim via output_dimensionality)
 
     # ── App ──────────────────────────────────────────────────────────────────
     log_level:    str       = "INFO"

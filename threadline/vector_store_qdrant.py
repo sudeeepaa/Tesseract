@@ -26,15 +26,22 @@ class QdrantVectorStore:
         collection_name: str = "threadline_facts",
         embedding_model: str = "all-MiniLM-L6-v2",
         embedding_dim: int = 384,
+        embedding_backend: str = "sentence_transformers",
+        embedding_api_key: str = "",
     ) -> None:
+        from threadline.embeddings import Embedder
         self.url = url
         self.api_key = api_key
         self.collection_name = collection_name
         self.embedding_model = embedding_model
         self.embedding_dim = embedding_dim
         self.client = QdrantClient(url=url, api_key=api_key)
-        self._model = None
-        self._use_hash_embed = False
+        self._embedder = Embedder(
+            backend=embedding_backend,
+            model=embedding_model,
+            dim=embedding_dim,
+            api_key=embedding_api_key,
+        )
 
         # Lazy check if collection exists; if not, create it
         try:
@@ -59,47 +66,13 @@ class QdrantVectorStore:
             )
             logger.info("Created Qdrant collection: %s", self.collection_name)
 
-    # ── Embedding generation (using local sentence-transformers) ──────────────
-
-    def _load_model(self) -> None:
-        if self._model is not None or self._use_hash_embed:
-            return
-        try:
-            from sentence_transformers import SentenceTransformer
-            self._model = SentenceTransformer(self.embedding_model)
-            logger.debug("Qdrant store sentence-transformers model loaded: %s", self.embedding_model)
-        except ImportError:
-            logger.warning(
-                "sentence-transformers not installed; using hash-based fallback. "
-                "Vector database values will not be semantically meaningful."
-            )
-            self._use_hash_embed = True
-        except Exception as e:
-            logger.warning("Failed to load embedding model: %s — using hash fallback", e)
-            self._use_hash_embed = True
+    # ── Embedding generation (pluggable: gemini | sentence-transformers | hash) ─
 
     def _embed_single(self, text: str) -> list[float]:
-        self._load_model()
-        if self._use_hash_embed:
-            # Hash fallback function
-            import hashlib, random
-            seed = int(hashlib.md5(text.encode()).hexdigest(), 16)
-            rng = random.Random(seed)
-            vec = [rng.gauss(0, 1) for _ in range(self.embedding_dim)]
-            # normalize
-            import math
-            mag = math.sqrt(sum(x*x for x in vec))
-            return [x/mag for x in vec] if mag > 1e-9 else vec
-        
-        emb = self._model.encode([text], normalize_embeddings=True)
-        return emb[0].tolist()
+        return self._embedder.embed_one(text, task="query")
 
     def _embed_batch(self, texts: list[str]) -> list[list[float]]:
-        self._load_model()
-        if self._use_hash_embed:
-            return [self._embed_single(t) for t in texts]
-        embs = self._model.encode(texts, normalize_embeddings=True, batch_size=64)
-        return [e.tolist() for e in embs]
+        return self._embedder.embed(texts, task="document")
 
     # ── Write ─────────────────────────────────────────────────────────────────
 
@@ -206,7 +179,7 @@ class QdrantVectorStore:
                 "backend": "qdrant",
                 "vector_count": info.points_count,
                 "model": self.embedding_model,
-                "using_hash_fallback": self._use_hash_embed,
+                "using_hash_fallback": self._embedder.using_hash_fallback,
             }
         except Exception as e:
             return {

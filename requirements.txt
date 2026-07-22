@@ -11,7 +11,9 @@ langgraph>=0.4
 mcp>=1.0
 neo4j>=5.20
 qdrant-client>=1.9
-sentence-transformers>=3.0
+# Embeddings are served via the Gemini API in production (EMBEDDING_BACKEND=gemini),
+# so torch / sentence-transformers is intentionally omitted here to keep the Render
+# instance small (avoids the 512 MB OOM). Local dev still installs it via pyproject.
 typer[all]>=0.12
 rich>=13.7
 httpx>=0.27
