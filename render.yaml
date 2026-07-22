@@ -1,0 +1,81 @@
+# Render Blueprint for Tesseract (threadline) — meeting-intelligence pipeline.
+# Two services: a FastAPI backend (web) and a Vite/React frontend (static site).
+#
+# The app degrades gracefully: with no Neo4j/Qdrant/LLM keys it runs fully
+# in-memory, so it boots even before you fill in the secrets below. Add the
+# `sync: false` secrets in the Render dashboard to enable the real integrations.
+services:
+  # ── Backend API (FastAPI + Uvicorn) ─────────────────────────────────────────
+  - type: web
+    name: tesseract-api
+    runtime: python
+    # NOTE: this backend loads torch / sentence-transformers (embeddings), which
+    # is memory-heavy. `free`/`starter` are 512 MB and may OOM (exit 137) on the
+    # first pipeline run — if that happens, change this to `standard` (2 GB).
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn backend.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /api/v1/health
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.11.9"
+      # Skip the optional single-process A2A ASGI mounts so boot is fast and does
+      # not attempt GCP auth. The in-process agent pipeline is unaffected.
+      - key: THREADLINE_TESTING
+        value: "1"
+      # ── LLM extraction ──
+      - key: EXTRACTOR_BACKEND
+        value: gemini
+      - key: GEMINI_MODEL
+        value: gemini-flash-lite-latest
+      - key: GEMINI_API_KEY
+        sync: false
+      # ── Lyzr Studio orchestration (mandatory integration) ──
+      - key: LYZR_API_KEY
+        sync: false
+      - key: LYZR_AGENT_ID
+        sync: false
+      # ── Neo4j (Aura). Unreachable → auto-degrades to in-memory graph. ──
+      - key: GRAPH_BACKEND
+        value: neo4j
+      - key: NEO4J_URI
+        sync: false
+      - key: NEO4J_USER
+        sync: false
+      - key: NEO4J_PASSWORD
+        sync: false
+      # ── Qdrant (Cloud). Unreachable → auto-degrades to in-memory vectors. ──
+      - key: VECTOR_BACKEND
+        value: qdrant
+      - key: QDRANT_URL
+        sync: false
+      - key: QDRANT_API_KEY
+        sync: false
+      - key: QDRANT_COLLECTION
+        value: threadline_facts
+      # ── Embeddings ──
+      - key: EMBEDDING_MODEL
+        value: all-MiniLM-L6-v2
+      - key: EMBEDDING_DIM
+        value: "384"
+      - key: LOG_LEVEL
+        value: INFO
+
+  # ── Frontend (Vite/React, served from Render's CDN) ─────────────────────────
+  - type: web
+    name: tesseract-web
+    runtime: static
+    rootDir: frontend
+    buildCommand: npm ci && npm run build
+    staticPublishPath: ./dist
+    # SPA fallback so React Router deep links resolve to index.html.
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
+    envVars:
+      # The backend's public URL, baked into the Vite bundle at build time.
+      # Explicit (not fromService) because the backend service carries a Render
+      # name suffix (-26l1); an explicit URL is unambiguous and reliable.
+      - key: VITE_API_BASE_URL
+        value: https://tesseract-api-26l1.onrender.com
