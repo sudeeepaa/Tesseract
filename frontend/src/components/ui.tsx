@@ -1,27 +1,42 @@
 import React from 'react';
-import { Loader2 } from 'lucide-react';
+import { Loader2, Info } from 'lucide-react';
+
+/* ── Info tooltip ─────────────────────────────────────────────────────────── */
+/** A small "i" icon that shows a plain-language explanation on hover/focus.
+ *  Use wherever a number, status, or term needs one extra sentence of context
+ *  to be self-explanatory to a non-technical reader. */
+export const InfoTip: React.FC<{ text: string; size?: number }> = ({ text, size = 13 }) => (
+  <span
+    tabIndex={0}
+    title={text}
+    aria-label={text}
+    style={{ display: 'inline-flex', alignItems: 'center', cursor: 'help', color: 'var(--text-muted)', verticalAlign: 'middle' }}
+  >
+    <Info size={size} />
+  </span>
+);
 
 /* ── Status pill ──────────────────────────────────────────────────────────── */
 type Tone = 'green' | 'amber' | 'red' | 'blue' | 'gray';
 
-const DECISION_TONE: Record<string, [Tone, string]> = {
-  confirmed:    ['green', 'Confirmed'],
-  proposed:     ['blue',  'Proposed'],
-  under_review: ['amber', 'Under review'],
-  superseded:   ['gray',  'Replaced'],
-  reversed:     ['gray',  'Reversed'],
+const DECISION_TONE: Record<string, [Tone, string, string]> = {
+  confirmed:    ['green', 'Confirmed', 'The team agreed on this and no concern has been raised since.'],
+  proposed:     ['blue',  'Proposed', 'Mentioned as an option in a meeting, but not yet agreed upon.'],
+  under_review: ['amber', 'Under review', 'A later meeting raised a concern about this decision, but no replacement has been confirmed yet — it is still nominally in force.'],
+  superseded:   ['gray',  'Replaced', 'A later meeting explicitly replaced this with a new, confirmed decision.'],
+  reversed:     ['gray',  'Reversed', 'A later meeting cancelled this decision with no replacement chosen.'],
 };
-const ACTION_TONE: Record<string, [Tone, string]> = {
-  open:        ['blue',  'Open'],
-  in_progress: ['amber', 'In progress'],
-  completed:   ['green', 'Done'],
-  cancelled:   ['gray',  'Cancelled'],
+const ACTION_TONE: Record<string, [Tone, string, string]> = {
+  open:        ['blue',  'Open', 'Assigned but not yet started or completed.'],
+  in_progress: ['amber', 'In progress', 'Work on this task has started.'],
+  completed:   ['green', 'Done', 'This task was marked complete.'],
+  cancelled:   ['gray',  'Cancelled', 'This task was called off before completion.'],
 };
 
 export const StatusPill: React.FC<{ value: string; kind?: 'decision' | 'action' }> = ({ value, kind = 'decision' }) => {
   const map = kind === 'action' ? ACTION_TONE : DECISION_TONE;
-  const [tone, label] = map[value] ?? (['gray', value] as [Tone, string]);
-  return <span className={`pill pill-${tone}`}>{label}</span>;
+  const [tone, label, explain] = map[value] ?? (['gray', value, ''] as [Tone, string, string]);
+  return <span className={`pill pill-${tone}`} title={explain || undefined}>{label}</span>;
 };
 
 /* ── Stat card ────────────────────────────────────────────────────────────── */

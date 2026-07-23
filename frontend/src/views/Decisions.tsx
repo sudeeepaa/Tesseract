@@ -2,8 +2,15 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ClipboardCheck, Sparkles, ChevronDown, ArrowRightLeft, AlertTriangle, ShieldCheck } from 'lucide-react';
 import { apiClient, BriefingOutput, ConflictRecord, Decision, MeetingSummary } from '../api/client';
-import { StatusPill, EmptyState, SkeletonLines } from '../components/ui';
+import { StatusPill, EmptyState, SkeletonLines, InfoTip } from '../components/ui';
 import { meetingLabel } from '../components/SourceBadge';
+
+const WHY_CHANGED_EXPLAINER =
+  "Captured from the meeting where this decision's status changed — the model's stated reason " +
+  'for moving it to under review, replacing it, or reversing it.';
+const CONFLICT_CONFIDENCE_EXPLAINER =
+  'How sure the extraction agent is that these two statements truly contradict each other, based ' +
+  'on whether they name the same decision and the same clashing requirement.';
 
 function fmtDate(iso?: string | null): string | null {
   if (!iso) return null;
@@ -77,6 +84,7 @@ const DecisionRow: React.FC<{ d: Decision; conflicts: ConflictRecord[] }> = ({ d
               <div className="row" style={{ gap: 6, marginBottom: 4 }}>
                 <ShieldCheck size={13} color="var(--accent)" />
                 <span style={{ fontSize: 11.5, fontWeight: 600, letterSpacing: '0.04em', textTransform: 'uppercase', color: 'var(--text-muted)' }}>Why this changed</span>
+                <InfoTip text={WHY_CHANGED_EXPLAINER} />
               </div>
               <div style={{ fontSize: 13.5, lineHeight: 1.55, color: 'var(--text-2)', fontStyle: 'italic' }}>
                 "{d.status_reason}"
@@ -95,6 +103,7 @@ const DecisionRow: React.FC<{ d: Decision; conflicts: ConflictRecord[] }> = ({ d
                   {c.confidence != null && (
                     <div className="row" style={{ gap: 8, alignItems: 'center' }}>
                       <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Conflict confidence</span>
+                      <InfoTip text={CONFLICT_CONFIDENCE_EXPLAINER} />
                       <span style={{
                         fontSize: 12.5, fontWeight: 700,
                         color: confidenceColor(c.confidence),

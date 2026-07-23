@@ -76,7 +76,7 @@ Return a JSON object with exactly these keys:
     {{
       "text": "concise statement of what was decided",
       "status": "<see STATUS GUIDE>",
-      "rationale": "why (optional, null ok)",
+      "rationale": "1-2 full sentences of WHY this was decided, citing the specific tradeoff or constraint discussed (optional, null ok — never a one-word fragment)",
       "owner": "person responsible (optional, null ok)",
       "supersedes_decision_id": "ID from EXISTING DECISIONS if this replaces one, else null"
     }}
@@ -87,7 +87,7 @@ Return a JSON object with exactly these keys:
       "decision_id":    "ID from EXISTING DECISIONS list above",
       "decision_text":  "original text of that prior decision",
       "new_status":     "under_review | superseded | reversed",
-      "reason":         "why the status is changing",
+      "reason":         "1-2 full sentences explaining WHY the status is changing and what triggered it — this becomes the 'why this changed' explanation shown to the end user, so be specific rather than terse",
       "new_decision_id":"ID of the replacement decision (only when new_status=superseded)"
     }}
   ],
@@ -450,26 +450,49 @@ _MEETING_01_DECISIONS = [
     Decision(id="dec_m1_01", text="Use React for the frontend",
              status=DecisionStatus.confirmed, owner="Dev Rao",
              source_meeting_id="meeting_01",
-             rationale="Team familiarity and ecosystem maturity"),
+             rationale="The team already has production React experience and the surrounding "
+                       "ecosystem (routing, state management, testing tools) is the most mature "
+                       "of the options considered, which keeps ramp-up time near zero ahead of "
+                       "a tight V1 timeline."),
     Decision(id="dec_m1_02", text="Use FastAPI for the backend",
              status=DecisionStatus.confirmed, owner="Dev Rao",
-             source_meeting_id="meeting_01"),
+             source_meeting_id="meeting_01",
+             rationale="FastAPI's async-first design matches the real-time briefing and "
+                       "streaming requirements planned for later phases, and the whole "
+                       "engineering team already writes Python day to day, so there is no "
+                       "second backend language to maintain."),
     Decision(id="dec_m1_03", text="Use PostgreSQL for primary storage",
              status=DecisionStatus.confirmed, owner="Dev Rao",
-             source_meeting_id="meeting_01"),
+             source_meeting_id="meeting_01",
+             rationale="Relational integrity fits the initial decision and action-item schema, "
+                       "and the team has existing Postgres operational tooling from a prior "
+                       "project. This was revisited in meeting_02 once the real data model "
+                       "turned out to be more hierarchical than expected."),
     Decision(id="dec_m1_04", text="Use Auth0 for authentication",
              status=DecisionStatus.confirmed, owner="Dev Rao",
              source_meeting_id="meeting_01",
-             rationale="Existing enterprise contract covers this"),
+             rationale="An existing enterprise contract already covers Auth0 at no incremental "
+                       "cost, and it ships SSO out of the box so the team can skip building "
+                       "custom auth before launch. This decision was later revisited once GDPR "
+                       "data-residency concerns surfaced in meeting_03."),
     Decision(id="dec_m1_05", text="Ship V1 by June 30 (non-negotiable)",
              status=DecisionStatus.confirmed, owner="Marcus Webb",
-             source_meeting_id="meeting_01"),
+             source_meeting_id="meeting_01",
+             rationale="Marcus committed this date to the board ahead of the meeting, so it is "
+                       "treated as a fixed external constraint rather than an engineering "
+                       "estimate the team can renegotiate."),
     Decision(id="dec_m1_06", text="All data must remain in EU region (AWS eu-west-1)",
              status=DecisionStatus.confirmed, owner="Marcus Webb",
-             source_meeting_id="meeting_01"),
+             source_meeting_id="meeting_01",
+             rationale="Required for GDPR compliance given the EU customer base. This is the "
+                       "constraint that later rules out Auth0's US-routed telemetry in "
+                       "meeting_03."),
     Decision(id="dec_m1_07", text="Use Material UI component library for V1",
              status=DecisionStatus.confirmed, owner="Dev Rao",
-             source_meeting_id="meeting_01"),
+             source_meeting_id="meeting_01",
+             rationale="Priya's team already has design components mapped to Material UI, so "
+                       "adopting it avoids building a parallel design system during the "
+                       "compressed V1 timeline."),
 ]
 
 _MEETING_02_DECISIONS = [
@@ -477,7 +500,10 @@ _MEETING_02_DECISIONS = [
              status=DecisionStatus.confirmed, owner="Lena Hoffmann",
              source_meeting_id="meeting_02",
              supersedes_decision_id="dec_m1_03",
-             rationale="Better fit for hierarchical data model; earlier Postgres decision was a mistake"),
+             rationale="The Sprint 3 data model turned out to be deeply nested (projects, "
+                       "tasks, and sub-tasks with variable fields), which fights against "
+                       "PostgreSQL's fixed-column schema. MongoDB Atlas's document model maps "
+                       "directly onto that shape without a complex join structure."),
 ]
 
 _MEETING_04_DECISIONS = [
@@ -486,7 +512,11 @@ _MEETING_04_DECISIONS = [
              status=DecisionStatus.confirmed, owner="Dev Rao",
              source_meeting_id="meeting_04",
              supersedes_decision_id="dec_m1_04",
-             rationale="Auth0 standard tier violates GDPR; Private Cloud too expensive; Keycloak migration is 4 dev-days"),
+             rationale="Auth0's standard tier can't guarantee EU-only data residency, and "
+                       "upgrading to its Private Cloud tier would have blown the infrastructure "
+                       "budget. Keycloak self-hosted in eu-west-1 satisfies the residency "
+                       "requirement directly, and Dev estimated the migration at four "
+                       "engineering-days — well within the launch timeline."),
 ]
 
 _MOCK_RESPONSES: dict[str, dict] = {
@@ -521,7 +551,10 @@ _MOCK_RESPONSES: dict[str, dict] = {
                 decision_id="dec_m1_03",
                 decision_text="Use PostgreSQL for primary storage",
                 new_status=DecisionStatus.superseded,
-                reason="Data model evolved; MongoDB Atlas is a better fit for hierarchical structures",
+                reason="As the schema grew more nested through Sprint 3, PostgreSQL's "
+                       "fixed-column model started requiring frequent migrations. MongoDB "
+                       "Atlas's flexible documents fit the actual shape of the data without "
+                       "ongoing schema churn.",
                 new_decision_id="dec_m2_01",
             ),
         ],
@@ -552,7 +585,11 @@ _MOCK_RESPONSES: dict[str, dict] = {
                 decision_id="dec_m1_04",
                 decision_text="Use Auth0 for authentication",
                 new_status=DecisionStatus.under_review,   # ← must NOT be superseded
-                reason="Auth0 standard tier has GDPR carve-outs; telemetry may route through US infrastructure",
+                reason="Raj's security review found that Auth0's standard tier routes "
+                       "telemetry through US-based infrastructure, which conflicts with the "
+                       "EU-data-residency requirement locked in during meeting_01. No "
+                       "replacement has been chosen yet, so the decision is flagged for review "
+                       "rather than reversed outright.",
             ),
         ],
         "action_items": [
@@ -588,7 +625,11 @@ _MOCK_RESPONSES: dict[str, dict] = {
                 meeting_b_id="meeting_03",
                 resolved=False,
                 confidence=0.85,
-                reasoning="Telemetry routes through US infrastructure, which directly contradicts EU data residency requirements.",
+                reasoning="Auth0's standard tier routes telemetry through US-based "
+                          "infrastructure, which directly contradicts the EU-data-residency "
+                          "requirement the team agreed to in meeting_01. Confidence is high "
+                          "because both statements name the same vendor and the same "
+                          "compliance obligation, not just a related topic.",
             )
         ],
     },
@@ -599,7 +640,10 @@ _MOCK_RESPONSES: dict[str, dict] = {
                 decision_id="dec_m1_04",
                 decision_text="Use Auth0 for authentication",
                 new_status=DecisionStatus.superseded,   # ← now superseded (replacement confirmed)
-                reason="Keycloak explicitly chosen by Marcus; Auth0 Private Cloud too expensive",
+                reason="Marcus confirmed Keycloak as the replacement after comparing it "
+                       "against Auth0's Private Cloud tier, which would have added "
+                       "significant recurring cost. Self-hosting in eu-west-1 also resolves "
+                       "the GDPR concern raised in meeting_03 directly.",
                 new_decision_id="dec_m4_01",
             ),
         ],

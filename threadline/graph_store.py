@@ -343,12 +343,15 @@ class InMemoryGraphStore:
 
         updated_decisions = 0
         resolved = choice not in ("review", "defer", "deferred")
+        # Explainability trace for a human-resolved decision: why the status
+        # changed, in the reviewer's own words where they gave one.
+        reason_text = f"{conflict.description} — {note}" if note else conflict.description
 
         # Supersede the losing decision (switch case)
         if supersede_decision_id and supersede_decision_id in self._decisions:
             self._decisions[supersede_decision_id] = self._decisions[
                 supersede_decision_id
-            ].model_copy(update={"status": DecisionStatus.superseded})
+            ].model_copy(update={"status": DecisionStatus.superseded, "status_reason": reason_text})
             updated_decisions += 1
 
         # Confirm the winning / kept decision
@@ -356,7 +359,7 @@ class InMemoryGraphStore:
             dec = self._decisions[keep_decision_id]
             if dec.status != DecisionStatus.confirmed:
                 self._decisions[keep_decision_id] = dec.model_copy(
-                    update={"status": DecisionStatus.confirmed}
+                    update={"status": DecisionStatus.confirmed, "status_reason": reason_text}
                 )
                 updated_decisions += 1
 
@@ -367,7 +370,7 @@ class InMemoryGraphStore:
             )
             if target and target in self._decisions:
                 self._decisions[target] = self._decisions[target].model_copy(
-                    update={"status": DecisionStatus.under_review}
+                    update={"status": DecisionStatus.under_review, "status_reason": reason_text}
                 )
                 updated_decisions += 1
 

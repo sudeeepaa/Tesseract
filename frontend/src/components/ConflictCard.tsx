@@ -2,7 +2,13 @@ import React, { useState } from 'react';
 import { AlertTriangle, CheckCircle2, ArrowRight, Check, Flag, Loader2 } from 'lucide-react';
 import { apiClient, ConflictRecord, Decision, ResolutionChoice } from '../api/client';
 import { SourceBadge } from './SourceBadge';
+import { InfoTip } from './ui';
 import { useToast, useAppData } from '../state/app';
+
+const CONFIDENCE_EXPLAINER =
+  'How sure the extraction agent is that these two statements truly contradict each other, ' +
+  'rather than just discussing the same topic. It compares what each meeting said about the ' +
+  'same decision and the specific requirement they clash on — 60%+ is escalated to you.';
 
 interface Props {
   conflict: ConflictRecord;
@@ -79,8 +85,9 @@ export const ConflictCard: React.FC<Props> = ({ conflict, decisions, onResolved 
     <div className="conflict">
       <div className="conflict-head">
         <span className="conflict-flag"><AlertTriangle size={16} /> Needs your decision</span>
-        <span className="confidence" style={{ marginLeft: 'auto' }} title="How confident the assistant is that these clash">
+        <span className="confidence" style={{ marginLeft: 'auto', gap: 6 }}>
           AI confidence
+          <InfoTip text={CONFIDENCE_EXPLAINER} />
           <span className="confidence-bar"><span className="confidence-fill" style={{ width: `${pct}%` }} /></span>
           {pct}%
         </span>

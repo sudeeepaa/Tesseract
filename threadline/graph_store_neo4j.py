@@ -427,33 +427,38 @@ class Neo4jGraphStore:
         resolved_by: str | None, keep_decision_id: str | None,
         supersede_decision_id: str | None,
     ) -> dict[str, Any]:
-        if not tx.run("MATCH (cf:Conflict {id: $id}) RETURN cf", id=conflict_id).peek():
+        cf_record = tx.run("MATCH (cf:Conflict {id: $id}) RETURN cf", id=conflict_id).single()
+        if not cf_record:
             raise KeyError(f"Conflict {conflict_id!r} not found")
 
         from datetime import datetime, timezone
         updated_decisions = 0
         resolved = choice not in ("review", "defer", "deferred")
+        # Explainability trace for a human-resolved decision: why the status
+        # changed, in the reviewer's own words where they gave one.
+        description = cf_record["cf"].get("description", "")
+        reason_text = f"{description} — {note}" if note else description
 
         if supersede_decision_id:
             r = tx.run(
-                "MATCH (d:Decision {id: $id}) SET d.status = 'superseded' RETURN d",
-                id=supersede_decision_id,
+                "MATCH (d:Decision {id: $id}) SET d.status = 'superseded', d.status_reason = $reason RETURN d",
+                id=supersede_decision_id, reason=reason_text,
             )
             if r.peek():
                 updated_decisions += 1
 
         if keep_decision_id:
             r = tx.run(
-                "MATCH (d:Decision {id: $id}) SET d.status = 'confirmed' RETURN d",
-                id=keep_decision_id,
+                "MATCH (d:Decision {id: $id}) SET d.status = 'confirmed', d.status_reason = $reason RETURN d",
+                id=keep_decision_id, reason=reason_text,
             )
             if r.peek():
                 updated_decisions += 1
 
         if not resolved and keep_decision_id:
             tx.run(
-                "MATCH (d:Decision {id: $id}) SET d.status = 'under_review'",
-                id=keep_decision_id,
+                "MATCH (d:Decision {id: $id}) SET d.status = 'under_review', d.status_reason = $reason",
+                id=keep_decision_id, reason=reason_text,
             )
 
         tx.run(

@@ -3,7 +3,12 @@ import ForceGraph2D from 'react-force-graph-2d';
 import { Loader2, RefreshCw, X, Eye, EyeOff } from 'lucide-react';
 import { forceCollide } from 'd3-force';
 import { apiClient, GraphSnapshot, GraphNode } from '../api/client';
-import { EmptyState } from '../components/ui';
+import { EmptyState, InfoTip } from '../components/ui';
+
+const EDGE_EXPLAINER =
+  'Solid lines show a decision or task was mentioned in a meeting. Dashed arrows with an arrowhead ' +
+  'show one decision replacing an older one (SUPERSEDES) or clashing with it (CONTRADICTS) — hover ' +
+  'or zoom in to read the label on any edge.';
 
 const COLORS: Record<string, string> = {
   meeting: '#4b83e0', decision: '#2f9268', under_review: '#c98a2a',
@@ -143,7 +148,9 @@ export const MapView: React.FC = () => {
     <div style={{ padding: '24px 26px 26px', display: 'flex', flexDirection: 'column', gap: 14, height: 'calc(100vh - 49px)' }}>
       <header>
         <div className="page-eyebrow">Relationships</div>
-        <h1 className="page-title" style={{ fontSize: 22 }}>How everything connects</h1>
+        <h1 className="page-title row" style={{ fontSize: 22, gap: 8, alignItems: 'center' }}>
+          How everything connects <InfoTip text={EDGE_EXPLAINER} size={15} />
+        </h1>
         <p className="page-lead" style={{ fontSize: 13.5 }}>Meetings, decisions, people, and tasks — and how newer decisions replace older ones. Click any dot for details.</p>
       </header>
 
