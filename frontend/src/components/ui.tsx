@@ -5,10 +5,10 @@ import { Loader2, Info } from 'lucide-react';
 /** A small "i" icon that shows a plain-language explanation on hover/focus.
  *  Use wherever a number, status, or term needs one extra sentence of context
  *  to be self-explanatory to a non-technical reader. */
-export const InfoTip: React.FC<{ text: string; size?: number; placement?: 'top' | 'bottom' }> =
-  ({ text, size = 13, placement = 'top' }) => (
+export const InfoTip: React.FC<{ text: string; size?: number; placement?: 'top' | 'bottom'; align?: 'center' | 'end' }> =
+  ({ text, size = 13, placement = 'top', align = 'center' }) => (
     <span
-      className={`info-tip${placement === 'bottom' ? ' info-tip-below' : ''}`}
+      className={`info-tip${placement === 'bottom' ? ' info-tip-below' : ''}${align === 'end' ? ' info-tip-end' : ''}`}
       tabIndex={0} data-tip={text} aria-label={text} style={{ verticalAlign: 'middle' }}
     >
       <Info size={size} />

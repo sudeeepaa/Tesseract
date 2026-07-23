@@ -348,6 +348,12 @@ button { font-family: inherit; }
 /* Flip below the element when there isn't room above (e.g. clipped by an overflow:hidden card header) */
 .info-tip-below::after { bottom: auto; top: calc(100% + 8px); transform: translate(-50%, -4px); }
 .info-tip-below:hover::after, .info-tip-below:focus-visible::after { transform: translate(-50%, 0); }
+/* Anchor to the right edge instead of centering, for icons pinned to the right
+   of a row (e.g. marginLeft:auto badges) so the box doesn't overflow past a
+   card's clipped edge */
+.info-tip-end::after { left: auto; right: 0; transform: translateY(4px); }
+.info-tip-end.info-tip-below::after { transform: translateY(-4px); }
+.info-tip-end:hover::after, .info-tip-end:focus-visible::after { transform: translateY(0); }
 
 /* ── Empty + skeleton ─────────────────────────────────────────────────────── */
 .empty { text-align: center; padding: 44px 20px; color: var(--text-2); }

@@ -87,7 +87,7 @@ export const ConflictCard: React.FC<Props> = ({ conflict, decisions, onResolved 
         <span className="conflict-flag"><AlertTriangle size={16} /> Needs your decision</span>
         <span className="confidence" style={{ marginLeft: 'auto', gap: 6 }}>
           AI confidence
-          <InfoTip text={CONFIDENCE_EXPLAINER} placement="bottom" />
+          <InfoTip text={CONFIDENCE_EXPLAINER} placement="bottom" align="end" />
           <span className="confidence-bar"><span className="confidence-fill" style={{ width: `${pct}%` }} /></span>
           {pct}%
         </span>
