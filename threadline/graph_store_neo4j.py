@@ -127,10 +127,12 @@ class Neo4jGraphStore:
             tx.run(
                 """
                 MATCH (d:Decision {id: $id})
-                SET d.status = $new_status
+                SET d.status = $new_status,
+                    d.status_reason = $reason
                 """,
                 id=pu.decision_id,
                 new_status=pu.new_status.value,
+                reason=pu.reason,
             )
 
         # ── Supersessions ────────────────────────────────────────────────────
@@ -354,6 +356,7 @@ class Neo4jGraphStore:
                     rationale=node.get("rationale"),
                     owner=node.get("owner"),
                     source_meeting_id=node["source_meeting_id"],
+                    status_reason=node.get("status_reason"),
                 ))
             return decisions
 

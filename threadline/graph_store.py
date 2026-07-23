@@ -129,9 +129,9 @@ class InMemoryGraphStore:
             if not existing:
                 logger.warning("PriorDecisionUpdate references unknown decision %r", pu.decision_id)
                 continue
-            # Mutate status in place
+            # Mutate status in place, recording WHY it changed (explainability).
             self._decisions[pu.decision_id] = existing.model_copy(
-                update={"status": pu.new_status}
+                update={"status": pu.new_status, "status_reason": pu.reason}
             )
 
         # ── Supersession edges ────────────────────────────────────────────────

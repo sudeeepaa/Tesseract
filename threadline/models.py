@@ -19,7 +19,7 @@ from datetime import datetime, timezone
 from enum import Enum
 from typing import Any, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -154,6 +154,9 @@ class Decision(BaseModel):
     source_meeting_id:       str
     supersedes_decision_id:  Optional[str]  = None
     contradicts_decision_ids: list[str]     = Field(default_factory=list)
+    # Why this decision's status last changed (e.g. the reason it went
+    # under_review or was superseded). Surfaced as the explainability trace.
+    status_reason:           Optional[str]  = None
 
     def is_active(self) -> bool:
         """True when the decision is still in effect (not superseded/reversed)."""
@@ -176,6 +179,15 @@ class ActionItem(BaseModel):
     confidence:           float             = 1.0
     reasoning:            Optional[str]     = None
     is_stale:             bool              = False
+
+    @field_validator("due_date", "assignee", mode="before")
+    @classmethod
+    def _blank_to_none(cls, v: Any) -> Any:
+        """Coerce placeholder strings the LLM sometimes emits into None so the
+        UI never shows a literal 'null' due date."""
+        if isinstance(v, str) and v.strip().lower() in {"null", "none", "", "n/a", "tbd", "undefined"}:
+            return None
+        return v
 
 
 class Entity(BaseModel):

@@ -21,7 +21,8 @@ function confidenceColor(score: number): string {
 const DecisionRow: React.FC<{ d: Decision; conflicts: ConflictRecord[] }> = ({ d, conflicts }) => {
   const [open, setOpen] = useState(false);
   const muted = d.status === 'superseded' || d.status === 'reversed';
-  const hasDetail = !!(d.rationale || d.owner || d.supersedes_decision_id ||
+  const changed = d.status === 'superseded' || d.status === 'reversed' || d.status === 'under_review';
+  const hasDetail = !!(d.rationale || d.owner || d.supersedes_decision_id || (changed && d.status_reason) ||
     (d.contradicts_decision_ids && d.contradicts_decision_ids.length));
 
   const relatedConflicts = conflicts.filter(
@@ -68,6 +69,18 @@ const DecisionRow: React.FC<{ d: Decision; conflicts: ConflictRecord[] }> = ({ d
           {d.contradicts_decision_ids && d.contradicts_decision_ids.length > 0 && (
             <div className="row" style={{ gap: 7, fontSize: 13.5, color: 'var(--amber)' }}>
               <AlertTriangle size={14} /> Conflicts with {d.contradicts_decision_ids.length} other decision{d.contradicts_decision_ids.length === 1 ? '' : 's'}
+            </div>
+          )}
+
+          {changed && d.status_reason && (
+            <div style={{ marginTop: 4, borderTop: '1px solid var(--border)', paddingTop: 10 }} className="stack-sm">
+              <div className="row" style={{ gap: 6, marginBottom: 4 }}>
+                <ShieldCheck size={13} color="var(--accent)" />
+                <span style={{ fontSize: 11.5, fontWeight: 600, letterSpacing: '0.04em', textTransform: 'uppercase', color: 'var(--text-muted)' }}>Why this changed</span>
+              </div>
+              <div style={{ fontSize: 13.5, lineHeight: 1.55, color: 'var(--text-2)', fontStyle: 'italic' }}>
+                "{d.status_reason}"
+              </div>
             </div>
           )}
 

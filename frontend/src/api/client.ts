@@ -14,6 +14,7 @@ export interface Decision {
   source_meeting_id: string;
   supersedes_decision_id?: string;
   contradicts_decision_ids?: string[];
+  status_reason?: string | null;
 }
 
 export interface ActionItem {
