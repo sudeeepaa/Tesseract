@@ -1,0 +1,35 @@
+[TRANSCRIPT — Project Nexus Sprint 3 Review] [2024-04-11 2:15 PM | Attendees: Sarah Chen (PM), Dev Rao (Eng Lead), Priya Nair (Design), Lena Hoffmann (New Backend Engineer)]
+
+Sarah Chen: Welcome Lena — you're joining us on backend starting this sprint, correct?
+
+Lena Hoffmann: That's right, happy to be here. I've spent the last few days going through the current schema and I wanted to raise something before we get too much further in.
+
+Sarah Chen: Go ahead.
+
+Lena Hoffmann: Our data model has been evolving fast — a lot of nested, variable-shape data for project metadata and activity logs. PostgreSQL is workable, but we're fighting the relational schema more than benefiting from it at this point. I'd recommend switching to MongoDB for primary storage — it fits this kind of evolving, document-shaped data much more naturally.
+
+Dev Rao: I've noticed the same friction honestly. What would the migration effort look like?
+
+Lena Hoffmann: Manageable if we do it now rather than later — the dataset's still small. It gets a lot harder the longer we wait.
+
+Sarah Chen: Okay, let's make the call now while it's cheap. Switch to MongoDB for primary storage — this supersedes the PostgreSQL decision from the kickoff.
+
+Dev Rao: Agreed, better to eat this cost now.
+
+Sarah Chen: Lena, can you own putting together the actual migration plan?
+
+Lena Hoffmann: Yes, I'll draft the migration plan this week.
+
+Sarah Chen: Dev, once that's ready, can you update our deployment scripts to account for the new database?
+
+Dev Rao: Will do, once Lena's plan is in.
+
+Sarah Chen: Priya, how's the onboarding flow coming along?
+
+Priya Nair: On track. I want to finalize the onboarding flow wireframes based on the feedback from last sprint's testing.
+
+Sarah Chen: Great, please go ahead and finalize those. Anything else before we wrap?
+
+Dev Rao: Just a note that integration testing against the new backend structure will need another pass once the migration's in place, but that's expected.
+
+Sarah Chen: Understood, let's revisit that in the next review.

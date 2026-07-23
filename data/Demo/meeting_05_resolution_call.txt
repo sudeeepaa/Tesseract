@@ -1,0 +1,21 @@
+[TRANSCRIPT — Project Nexus Resolution Call] [2024-05-27 2:00 PM | Attendees: Sarah Chen (PM), Dev Rao (Eng Lead), Raj Patel (Security), Emily (Backend Engineer)]
+
+Sarah Chen: Raj, you had an update on the Auth0 situation from last week?
+
+Raj Patel: Yes. I confirmed with Auth0's support team — on our current plan, they cannot guarantee EU-only data residency. It would require an enterprise-tier contract we don't have budget for right now.
+
+Dev Rao: So what's the alternative?
+
+Raj Patel: I'd recommend Keycloak. It's open-source, self-hostable, and we can deploy it entirely within our own AWS eu-west-1 region, which satisfies our data residency requirement directly.
+
+Sarah Chen: Okay, let's make it official — we're switching from Auth0 to Keycloak for authentication. This supersedes the Auth0 decision from the kickoff meeting.
+
+Dev Rao: Agreed. That resolves the compliance concern cleanly.
+
+Sarah Chen: Emily, can you own the Keycloak integration work and confirm GDPR compliance once it's deployed?
+
+Emily: Yes, I can take that on. I'll finish the integration and verify GDPR compliance by next month.
+
+Sarah Chen: Perfect. Raj, thank you for catching this before launch.
+
+Raj Patel: Glad we caught it in time.

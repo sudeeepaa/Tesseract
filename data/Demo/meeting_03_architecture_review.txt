@@ -1,0 +1,29 @@
+[TRANSCRIPT — Project Nexus Architecture Review] [2024-05-06 11:00 AM | Attendees: Sarah Chen (PM), Dev Rao (Eng Lead), Lena Hoffmann (Backend), Raj Patel (Security)]
+
+Sarah Chen: Raj, thanks for joining — you'll be leading the security and compliance review ahead of launch, right?
+
+Raj Patel: That's right. Given the EU data residency requirement from the kickoff, I want to do a full pass over the architecture before we get too close to launch. Better to catch anything now than after we ship.
+
+Dev Rao: Makes sense. Happy to walk you through anything you need.
+
+Raj Patel: I'll need a clear picture of the current system architecture — every service, every third-party integration, and where each one actually stores or processes data.
+
+Dev Rao: I can put that together. I'll document the current architecture end to end so you've got a clean reference to review against.
+
+Raj Patel: That would help a lot. Lena, on the MongoDB side — can you walk me through how access control and authentication into the database itself is configured? I want to make sure that's locked down properly before launch too.
+
+Lena Hoffmann: Sure, I'll prepare the access-control and security configuration details for you to review.
+
+Raj Patel: Appreciated. I'm not going to sign off on anything today — I want to actually go through each piece properly rather than rubber-stamp it in this meeting.
+
+Sarah Chen: That's the right call. Take the time you need. When do you expect to have findings?
+
+Raj Patel: Give me a couple of weeks. I'll complete the full security and architecture review and come back with a report — including anything that needs to change before we can launch responsibly.
+
+Sarah Chen: Sounds good. Dev, Lena — please get Raj what he needs this week so he's not blocked.
+
+Dev Rao: Understood.
+
+Lena Hoffmann: Same here.
+
+Sarah Chen: Let's reconvene once Raj's review is complete.

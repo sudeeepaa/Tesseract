@@ -1,0 +1,39 @@
+[TRANSCRIPT — Project Nexus Kickoff Call] [2024-03-04 10:02 AM | Attendees: Sarah Chen (PM), Dev Rao (Eng Lead), Priya Nair (Design), Marcus Webb (Stakeholder)]
+
+Sarah Chen: Let's kick off Project Nexus properly. Marcus, you're here from the client side — good to have you. Dev, can you walk us through the proposed stack?
+
+Dev Rao: Sure. For the frontend, I'd recommend React — it gives us the most flexibility for the interactive dashboard views we've scoped. For the backend, FastAPI — fast to build with, good async support for what we need.
+
+Sarah Chen: Agreed on both. Let's lock those in — use React for the frontend, use FastAPI for the backend.
+
+Dev Rao: For the database, I'm proposing PostgreSQL for primary storage. It's reliable, well-understood, and fits our current relational data model.
+
+Sarah Chen: Let's go with that for now — use PostgreSQL for primary storage.
+
+Priya Nair: On the design side, I'd like us to standardize on Material UI as our component library for V1. It'll save us significant time versus building custom components from scratch.
+
+Sarah Chen: Agreed — use Material UI component library for V1.
+
+Marcus Webb: Before we go further, I need to flag two hard requirements from the client side. First, authentication — we've evaluated a few providers and I want us to commit to Auth0. It's proven, and our security team is comfortable with it.
+
+Sarah Chen: Understood — use Auth0 for authentication.
+
+Marcus Webb: Second, and this one's non-negotiable — all customer data must remain within the EU region. This is a contractual requirement, not a preference. I want this documented as a locked decision.
+
+Sarah Chen: Noted and locked in — all data must remain in EU region, specifically AWS eu-west-1.
+
+Marcus Webb: And finally, timeline. We need V1 shipped by June 30th. This is also non-negotiable from our side — there's a downstream customer commitment tied to that date.
+
+Sarah Chen: Understood. Let's lock that in as well — ship V1 by June 30th, non-negotiable.
+
+Dev Rao: That's an aggressive timeline given the scope, but workable if we start immediately.
+
+Sarah Chen: Agreed. Priya, can you have initial wireframes delivered so Dev's team can start building against something concrete?
+
+Priya Nair: Yes, I'll get wireframes delivered within the next couple of weeks.
+
+Sarah Chen: Great. Dev, can you get the repo scaffolded and a CI pipeline set up so we're ready to move fast once wireframes land?
+
+Dev Rao: On it — I'll scaffold the repo and set up the CI pipeline this week.
+
+Sarah Chen: Perfect. Let's reconvene at the next sprint review.

@@ -1,0 +1,17 @@
+[TRANSCRIPT — Project Nexus Security Review] [2024-05-20 3:00 PM | Attendees: Sarah Chen (PM), Dev Rao (Eng Lead), Raj Patel (Security)]
+
+Sarah Chen: Thanks for jumping on, Raj. You flagged something about our auth setup — what's going on?
+
+Raj Patel: Yeah, I was doing a compliance pass ahead of the June 30 launch and found a problem. We locked in "all data must remain in EU region" back in the kickoff, but Auth0's default tenant setup for our plan routes authentication data through US-based infrastructure. That's a direct conflict with our own EU data residency decision.
+
+Dev Rao: Wait, so the Auth0 decision from meeting one might actually violate our own compliance requirement?
+
+Raj Patel: Exactly. I'm not saying we definitely have to rip it out today, but I can't sign off on it as-is. I need to flag this as under review until we either get written confirmation Auth0 can guarantee EU-only data residency on our plan, or we find an alternative.
+
+Sarah Chen: Okay, let's mark the Auth0 authentication decision as under review, not confirmed, until this is resolved. Raj, can you research GDPR-compliant alternatives in case Auth0 can't guarantee this?
+
+Raj Patel: On it. I'll have a recommendation by early next week.
+
+Dev Rao: I'll hold off on any further Auth0-specific integration work until we hear back from Raj.
+
+Sarah Chen: Agreed. Let's reconvene once Raj has a recommendation.
