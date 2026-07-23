@@ -38,7 +38,7 @@ Existing AI tools like Otter.ai, Fireflies, or Zoom AI transcribe meetings into 
 ### 🔄 1. Cross-Meeting Decision Lifecycle Tracking
 Decisions are modeled as stateful entities with a formal lifecycle:
 `proposed → confirmed → under_review → superseded`
-* Automatically creates `SUPERSEDES` links when a new meeting replaces a previous decision.
+* Automatically creates `SUPERSEDES` links when a new meeting replaces a previous decision else it sends the new deicision for review.
 * Maintains a full lineage audit trail so no historical rationale is lost.
 
 ### ⚔️ 2. Contradiction & Conflict Resolution Engine
