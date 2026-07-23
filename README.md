@@ -130,7 +130,7 @@ flowchart TD
 * **Backend:** FastAPI, Uvicorn, Pydantic v2 (`pydantic-settings`), Python 3.11, `python-multipart`, SSE Streaming.
 * **AI & Agent Frameworks:** Lyzr Studio API, Google ADK (`google-adk[a2a]`), LangGraph, OpenAI SDK, Google Generative AI SDK.
 * **Databases:** Neo4j 5.20 (Knowledge Graph), Qdrant v1.18 (Vector DB), In-Memory Stubs.
-* **Embeddings:** `all-MiniLM-L6-v2` (384-dim), `models/gemini-embedding-001` (384-dim Matryoshka), Hash-based fallback.
+* **Embeddings:** `models/gemini-embedding-001` (768-dim), Hash-based fallback.
 * **Deployment:** Vercel (Frontend), Render (FastAPI Backend), Docker Compose (Local Dev DBs).
 
 ---
