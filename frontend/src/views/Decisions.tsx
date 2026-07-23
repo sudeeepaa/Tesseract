@@ -36,6 +36,12 @@ const DecisionRow: React.FC<{ d: Decision; conflicts: ConflictRecord[]; onChange
   const [comment, setComment] = useState('');
   const muted = d.status === 'superseded' || d.status === 'reversed';
   const changed = d.status === 'superseded' || d.status === 'reversed' || d.status === 'under_review';
+  // Gate the status-change actions so a click can't contradict the timeline:
+  //   • locked (superseded/reversed) → the narrative moved past it; no status change, comment only.
+  //   • Approve is pointless on an already-confirmed decision.
+  const locked = d.status === 'superseded' || d.status === 'reversed';
+  const canApprove = !locked && d.status !== 'confirmed';
+  const canReject = !locked;
   const hasDetail = !!(d.rationale || d.owner || d.supersedes_decision_id || (changed && d.status_reason) ||
     (d.contradicts_decision_ids && d.contradicts_decision_ids.length));
 
@@ -160,31 +166,42 @@ const DecisionRow: React.FC<{ d: Decision; conflicts: ConflictRecord[]; onChange
           {!hasDetail && relatedConflicts.length === 0 && <div className="muted" style={{ fontSize: 13 }}>No additional details were captured for this decision.</div>}
 
           {/* ── Human review ─────────────────────────────────────────────── */}
-          {d.review_note && (
+          {(d.review_note || d.reviewed_by) && (
             <div style={{ marginTop: 4, borderTop: '1px solid var(--border)', paddingTop: 10 }} className="stack-sm">
               <div className="row" style={{ gap: 6, marginBottom: 2 }}>
                 <UserCheck size={13} color="var(--accent)" />
                 <span style={{ fontSize: 11.5, fontWeight: 600, letterSpacing: '0.04em', textTransform: 'uppercase', color: 'var(--text-muted)' }}>
-                  Your team's note{d.reviewed_by ? ` · ${d.reviewed_by}` : ''}
+                  Human review{d.reviewed_by ? ` · ${d.reviewed_by}` : ''}
                 </span>
               </div>
-              <div style={{ fontSize: 13.5, lineHeight: 1.55, color: 'var(--text-2)', fontStyle: 'italic' }}>"{d.review_note}"</div>
+              {d.review_note && (
+                <div style={{ fontSize: 13.5, lineHeight: 1.55, color: 'var(--text-2)', fontStyle: 'italic' }}>"{d.review_note}"</div>
+              )}
             </div>
           )}
 
           <div style={{ marginTop: 4, borderTop: '1px solid var(--border)', paddingTop: 12 }} className="stack-sm">
             <div style={{ fontSize: 11.5, fontWeight: 600, letterSpacing: '0.04em', textTransform: 'uppercase', color: 'var(--text-muted)' }}>Your review</div>
             {!commentOpen ? (
-              <div className="row wrap" style={{ gap: 8 }}>
-                <button className="btn btn-outline btn-sm" disabled={!!busy} onClick={() => review('approve')}>
-                  {busy === 'approve' ? <Loader2 size={15} className="spin" /> : <Check size={15} />} Approve
-                </button>
-                <button className="btn btn-outline btn-sm" disabled={!!busy} onClick={() => review('reject')}>
-                  {busy === 'reject' ? <Loader2 size={15} className="spin" /> : <X size={15} />} Reject
-                </button>
+              <div className="row wrap" style={{ gap: 8, alignItems: 'center' }}>
+                {canApprove && (
+                  <button className="btn btn-outline btn-sm" disabled={!!busy} onClick={() => review('approve')}>
+                    {busy === 'approve' ? <Loader2 size={15} className="spin" /> : <Check size={15} />} Approve
+                  </button>
+                )}
+                {canReject && (
+                  <button className="btn btn-outline btn-sm" disabled={!!busy} onClick={() => review('reject')}>
+                    {busy === 'reject' ? <Loader2 size={15} className="spin" /> : <X size={15} />} Reject
+                  </button>
+                )}
                 <button className="btn btn-ghost btn-sm" disabled={!!busy} onClick={() => setCommentOpen(true)}>
                   <MessageSquarePlus size={15} /> Comment
                 </button>
+                {locked && (
+                  <span className="muted" style={{ fontSize: 12 }}>
+                    Already {d.status === 'superseded' ? 'replaced' : 'reversed'} — you can still leave a comment.
+                  </span>
+                )}
               </div>
             ) : (
               <div className="stack-sm">

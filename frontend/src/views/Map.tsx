@@ -25,6 +25,14 @@ function nodeColor(type: string, status?: string): string {
   return COLORS[type] || '#8a8a84';
 }
 
+// Radius in graph units, by importance. Meetings are the hubs, then decisions.
+function nodeRadius(type: string): number {
+  if (type === 'meeting') return 9;
+  if (type === 'decision') return 7;
+  if (type === 'action_item') return 5.5;
+  return 5; // entity / topic
+}
+
 export const MapView: React.FC = () => {
   const [snapshot, setSnapshot] = useState<GraphSnapshot | null>(null);
   const [loading, setLoading] = useState(true);
@@ -62,9 +70,9 @@ export const MapView: React.FC = () => {
     const id = setTimeout(() => {
       if (!graphRef.current) return;
       forcedRef.current = true;
-      graphRef.current.d3Force('charge').strength(-480);
-      graphRef.current.d3Force('link').distance(88);
-      graphRef.current.d3Force('collide', forceCollide((n: any) => (n.type === 'meeting' ? 22 : 16)).iterations(2));
+      graphRef.current.d3Force('charge').strength(-230);
+      graphRef.current.d3Force('link').distance(46);
+      graphRef.current.d3Force('collide', forceCollide((n: any) => (n.type === 'meeting' ? 20 : 12)).iterations(2));
       zoomedRef.current = false;
     }, 50);
     return () => clearTimeout(id);
@@ -92,26 +100,34 @@ export const MapView: React.FC = () => {
     document.body.style.cursor = node ? 'pointer' : 'default';
   }, []);
   const onEngineStop = useCallback(() => {
-    if (!zoomedRef.current && graphRef.current) { zoomedRef.current = true; graphRef.current.zoomToFit(600, 60); }
+    if (!zoomedRef.current && graphRef.current) { zoomedRef.current = true; graphRef.current.zoomToFit(600, 40); }
   }, []);
 
   const nodeCanvas = useCallback((node: any, ctx: CanvasRenderingContext2D, gs: number) => {
     const isSel = selected?.id === node.id;
     const isHov = hoveredRef.current?.id === node.id;
-    ctx.beginPath(); ctx.arc(node.x, node.y, 5, 0, 2 * Math.PI, false);
+    const r = nodeRadius(node.type);
+    ctx.beginPath(); ctx.arc(node.x, node.y, r, 0, 2 * Math.PI, false);
     ctx.fillStyle = node.color; ctx.fill();
-    if (isSel || isHov) { ctx.strokeStyle = isSel ? '#fff' : 'rgba(255,255,255,0.55)'; ctx.lineWidth = 2 / gs; ctx.stroke(); }
-    if (gs >= 2.4 || isSel || isHov) {
+    if (isSel || isHov) { ctx.strokeStyle = isSel ? '#fff' : 'rgba(255,255,255,0.7)'; ctx.lineWidth = 2.5 / gs; ctx.stroke(); }
+    // Meetings and decisions are the narrative — always label them. People/
+    // topics/tasks label on zoom, hover, or selection so the view stays clean.
+    const alwaysLabel = node.type === 'meeting' || node.type === 'decision';
+    if (alwaysLabel || gs >= 1.9 || isSel || isHov) {
       const raw = node.label ? String(node.label) : '';
-      const txt = raw.length > 22 ? raw.slice(0, 19) + '…' : raw;
-      const fs = 11 / gs; ctx.font = `${fs}px sans-serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-      const tw = ctx.measureText(txt).width, px = 4 / gs, py = 2 / gs, bw = tw + px * 2, bh = fs + py * 2;
-      const bx = node.x - bw / 2, by = node.y + 10 / gs - bh / 2;
-      ctx.fillStyle = 'rgba(20,22,28,0.9)'; ctx.strokeStyle = 'rgba(255,255,255,0.14)'; ctx.lineWidth = 1 / gs;
+      const txt = raw.length > 26 ? raw.slice(0, 23) + '…' : raw;
+      // Keep label text a readable on-screen size; don't let it shrink to nothing when zoomed out.
+      const fs = Math.min(13 / gs, 15);
+      ctx.font = `${node.type === 'meeting' ? 600 : 400} ${fs}px sans-serif`;
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      const tw = ctx.measureText(txt).width, px = 4 / gs, py = 2.5 / gs, bw = tw + px * 2, bh = fs + py * 2;
+      const yOff = r + 6 / gs + bh / 2;
+      const bx = node.x - bw / 2, by = node.y + yOff - bh / 2;
+      ctx.fillStyle = 'rgba(20,22,28,0.92)'; ctx.strokeStyle = 'rgba(255,255,255,0.16)'; ctx.lineWidth = 1 / gs;
       ctx.beginPath();
       if (ctx.roundRect) ctx.roundRect(bx, by, bw, bh, 3 / gs); else ctx.rect(bx, by, bw, bh);
       ctx.fill(); ctx.stroke();
-      ctx.fillStyle = '#fff'; ctx.fillText(txt, node.x, node.y + 10 / gs);
+      ctx.fillStyle = '#fff'; ctx.fillText(txt, node.x, node.y + yOff);
     }
   }, [selected]);
 
@@ -190,7 +206,7 @@ export const MapView: React.FC = () => {
               linkDirectionalArrowLength={(l: any) => (l.type === 'SUPERSEDES' ? 6 : 0)} linkDirectionalArrowRelPos={0.5}
               onNodeClick={onNodeClick} onNodeHover={onHover} cooldownTicks={200} onEngineStop={onEngineStop}
               nodePointerAreaPaint={(node: any, color: string, ctx: CanvasRenderingContext2D) => {
-                ctx.fillStyle = color; ctx.beginPath(); ctx.arc(node.x, node.y, 8, 0, 2 * Math.PI, false); ctx.fill();
+                ctx.fillStyle = color; ctx.beginPath(); ctx.arc(node.x, node.y, nodeRadius(node.type) + 3, 0, 2 * Math.PI, false); ctx.fill();
               }} />
           </div>
 

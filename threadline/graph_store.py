@@ -172,6 +172,11 @@ class InMemoryGraphStore:
             else:
                 self._entities[e.id] = e
                 new_nodes += 1
+            # Connect the entity to the meeting it was mentioned in (matches the
+            # Neo4j store) so people/technologies aren't floating, disconnected
+            # nodes in the graph view.
+            self._add_edge(e.id, meeting_id, EdgeType.mentioned_in, False)
+            new_edges += 1
 
         # ── Topics ────────────────────────────────────────────────────────────
         for t in result.topics:
@@ -184,6 +189,9 @@ class InMemoryGraphStore:
             else:
                 self._topics[t.id] = t
                 new_nodes += 1
+            # Connect the topic to its meeting too (Neo4j parity).
+            self._add_edge(t.id, meeting_id, EdgeType.mentioned_in, False)
+            new_edges += 1
 
         # ── Conflicts ─────────────────────────────────────────────────────────
         for c in result.new_conflicts:
