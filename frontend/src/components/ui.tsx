@@ -5,16 +5,15 @@ import { Loader2, Info } from 'lucide-react';
 /** A small "i" icon that shows a plain-language explanation on hover/focus.
  *  Use wherever a number, status, or term needs one extra sentence of context
  *  to be self-explanatory to a non-technical reader. */
-export const InfoTip: React.FC<{ text: string; size?: number }> = ({ text, size = 13 }) => (
-  <span
-    tabIndex={0}
-    title={text}
-    aria-label={text}
-    style={{ display: 'inline-flex', alignItems: 'center', cursor: 'help', color: 'var(--text-muted)', verticalAlign: 'middle' }}
-  >
-    <Info size={size} />
-  </span>
-);
+export const InfoTip: React.FC<{ text: string; size?: number; placement?: 'top' | 'bottom' }> =
+  ({ text, size = 13, placement = 'top' }) => (
+    <span
+      className={`info-tip${placement === 'bottom' ? ' info-tip-below' : ''}`}
+      tabIndex={0} data-tip={text} aria-label={text} style={{ verticalAlign: 'middle' }}
+    >
+      <Info size={size} />
+    </span>
+  );
 
 /* ── Status pill ──────────────────────────────────────────────────────────── */
 type Tone = 'green' | 'amber' | 'red' | 'blue' | 'gray';
@@ -36,7 +35,11 @@ const ACTION_TONE: Record<string, [Tone, string, string]> = {
 export const StatusPill: React.FC<{ value: string; kind?: 'decision' | 'action' }> = ({ value, kind = 'decision' }) => {
   const map = kind === 'action' ? ACTION_TONE : DECISION_TONE;
   const [tone, label, explain] = map[value] ?? (['gray', value, ''] as [Tone, string, string]);
-  return <span className={`pill pill-${tone}`} title={explain || undefined}>{label}</span>;
+  return (
+    <span className={`pill pill-${tone}`} tabIndex={explain ? 0 : undefined} data-tip={explain || undefined} style={{ cursor: explain ? 'help' : undefined }}>
+      {label}
+    </span>
+  );
 };
 
 /* ── Stat card ────────────────────────────────────────────────────────────── */

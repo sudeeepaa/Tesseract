@@ -314,6 +314,41 @@ button { font-family: inherit; }
 @keyframes overlay-in { from { opacity: 0; } to { opacity: 1; } }
 @keyframes dialog-in { from { opacity: 0; transform: scale(0.95) translateY(8px); } to { opacity: 1; transform: none; } }
 
+/* ── Info tooltip ─────────────────────────────────────────────────────────── */
+/* Applies to any element carrying a data-tip attribute (icons, pills, etc.) */
+[data-tip] { position: relative; }
+.info-tip { display: inline-flex; align-items: center; cursor: help; color: var(--text-muted); }
+.info-tip:hover { color: var(--accent); }
+[data-tip]::after {
+  content: attr(data-tip);
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 50%;
+  transform: translate(-50%, 4px);
+  width: max-content;
+  max-width: 260px;
+  background: var(--surface);
+  color: var(--text);
+  border: 1px solid var(--border-strong);
+  box-shadow: var(--shadow-pop);
+  border-radius: var(--r-md);
+  padding: 9px 11px;
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 1.5;
+  white-space: normal;
+  text-align: left;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition: opacity .12s ease, transform .12s ease;
+  z-index: 60;
+}
+[data-tip]:hover::after, [data-tip]:focus-visible::after { opacity: 1; visibility: visible; transform: translate(-50%, 0); }
+/* Flip below the element when there isn't room above (e.g. clipped by an overflow:hidden card header) */
+.info-tip-below::after { bottom: auto; top: calc(100% + 8px); transform: translate(-50%, -4px); }
+.info-tip-below:hover::after, .info-tip-below:focus-visible::after { transform: translate(-50%, 0); }
+
 /* ── Empty + skeleton ─────────────────────────────────────────────────────── */
 .empty { text-align: center; padding: 44px 20px; color: var(--text-2); }
 .empty-icon { width: 46px; height: 46px; border-radius: 12px; background: var(--bg-sunken); display: grid; place-items: center; margin: 0 auto 14px; color: var(--text-muted); }
