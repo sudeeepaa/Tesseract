@@ -152,6 +152,27 @@ class InMemoryGraphStore:
             new_edges += 1
             supersessions_applied += 1
 
+        # A new decision can also declare what it replaces directly via
+        # supersedes_decision_id. The LLM sets this reliably (it sees prior
+        # decision ids), but it cannot know the new decision's random id to put
+        # in a prior-update's new_decision_id — so `result.supersessions` is
+        # often empty even though a replacement happened. Draw the edge (and
+        # flip the old decision) from that field too. _add_edge dedupes, so this
+        # is harmless when the record above already covered it.
+        for d in result.decisions:
+            old_id = d.supersedes_decision_id
+            if not old_id or old_id not in self._decisions or old_id == d.id:
+                continue
+            self._add_edge(d.id, old_id, EdgeType.supersedes, True)
+            new_edges += 1
+            supersessions_applied += 1
+            old = self._decisions[old_id]
+            if old.status != DecisionStatus.superseded:
+                self._decisions[old_id] = old.model_copy(update={
+                    "status": DecisionStatus.superseded,
+                    "status_reason": old.status_reason or f"Replaced by “{d.text}”.",
+                })
+
         # ── Action items ──────────────────────────────────────────────────────
         for ai in result.action_items:
             if ai.id not in self._action_items:

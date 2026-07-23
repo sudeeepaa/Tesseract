@@ -155,6 +155,30 @@ class Neo4jGraphStore:
                 new_edges += 1
                 supersessions_applied += 1
 
+        # Also draw SUPERSEDES from a new decision's supersedes_decision_id — the
+        # reliable signal the LLM emits (it can't fill a prior-update's
+        # new_decision_id with the new decision's random id, so `supersessions`
+        # is often empty even though a replacement happened). MERGE dedupes.
+        for d in result.decisions:
+            if not d.supersedes_decision_id or d.supersedes_decision_id == d.id:
+                continue
+            res_edge = tx.run(
+                """
+                MATCH (new:Decision {id: $new_id}), (old:Decision {id: $old_id})
+                MERGE (new)-[r:SUPERSEDES]->(old)
+                SET r.superseded = true
+                SET old.status = 'superseded',
+                    old.status_reason = coalesce(old.status_reason, $reason)
+                RETURN r
+                """,
+                new_id=d.id,
+                old_id=d.supersedes_decision_id,
+                reason=f"Replaced by “{d.text}”.",
+            )
+            if res_edge.consume().counters.relationships_created > 0:
+                new_edges += 1
+                supersessions_applied += 1
+
         # ── Action Items ──────────────────────────────────────────────────────
         for ai in result.action_items:
             res = tx.run("MATCH (a:ActionItem {id: $id}) RETURN a", id=ai.id)
