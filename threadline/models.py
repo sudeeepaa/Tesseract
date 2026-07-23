@@ -157,6 +157,9 @@ class Decision(BaseModel):
     # Why this decision's status last changed (e.g. the reason it went
     # under_review or was superseded). Surfaced as the explainability trace.
     status_reason:           Optional[str]  = None
+    # ── Human review (set when a user approves/rejects/comments in the UI) ────
+    review_note:             Optional[str]  = None
+    reviewed_by:             Optional[str]  = None
 
     def is_active(self) -> bool:
         """True when the decision is still in effect (not superseded/reversed)."""
@@ -275,6 +278,21 @@ class ConflictResolutionRequest(BaseModel):
     resolved_by:           Optional[str] = None
     keep_decision_id:      Optional[str] = None
     supersede_decision_id: Optional[str] = None
+
+
+class DecisionReviewRequest(BaseModel):
+    """
+    Body for POST /api/v1/decisions/{id}/review — a human weighing in on a
+    single decision directly (independent of any conflict).
+
+    action semantics:
+      • "approve" — endorse the decision → status becomes ``confirmed``.
+      • "reject"  — overturn the decision → status becomes ``reversed``.
+      • "comment" — attach a note only; the decision's status is unchanged.
+    """
+    action:       str                     # "approve" | "reject" | "comment"
+    note:         Optional[str] = None
+    reviewed_by:  Optional[str] = None
 
 
 class SupersessionRecord(BaseModel):

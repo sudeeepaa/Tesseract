@@ -73,6 +73,16 @@ class GraphStore(Protocol):
         """Apply a human decision to a flagged conflict. See ConflictResolutionRequest."""
         ...
 
+    def review_decision(
+        self,
+        decision_id: str,
+        action:      str,
+        note:        str | None = None,
+        reviewed_by: str | None = None,
+    ) -> dict[str, Any]:
+        """Apply a human review to a single decision. See DecisionReviewRequest."""
+        ...
+
 
 # ─────────────────────────────────────────────────────────────────────────────
 # InMemoryGraphStore
@@ -390,6 +400,39 @@ class InMemoryGraphStore:
             "summary": (
                 "Conflict resolved" if resolved else "Flagged for review (still open)"
             ),
+        }
+
+    def review_decision(
+        self,
+        decision_id: str,
+        action:      str,
+        note:        str | None = None,
+        reviewed_by: str | None = None,
+    ) -> dict[str, Any]:
+        """
+        Apply a human review to one decision. "approve" → confirmed,
+        "reject" → reversed, "comment" → status unchanged. The note and
+        reviewer are always recorded.
+        """
+        dec = self._decisions.get(decision_id)
+        if dec is None:
+            raise KeyError(f"Decision {decision_id!r} not found")
+
+        update: dict[str, Any] = {"review_note": note, "reviewed_by": reviewed_by}
+        if action == "approve":
+            update["status"] = DecisionStatus.confirmed
+        elif action == "reject":
+            update["status"] = DecisionStatus.reversed
+        elif action != "comment":
+            raise ValueError(f"Unknown review action {action!r}")
+
+        self._decisions[decision_id] = dec.model_copy(update=update)
+        summary = {"approve": "Decision approved", "reject": "Decision rejected"}.get(action, "Comment added")
+        return {
+            "decision_id": decision_id,
+            "action":      action,
+            "new_status":  self._decisions[decision_id].status.value,
+            "summary":     summary,
         }
 
     def purge_person(self, person_name: str) -> dict[str, Any]:

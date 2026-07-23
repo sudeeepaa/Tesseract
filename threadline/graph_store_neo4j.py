@@ -357,6 +357,8 @@ class Neo4jGraphStore:
                     owner=node.get("owner"),
                     source_meeting_id=node["source_meeting_id"],
                     status_reason=node.get("status_reason"),
+                    review_note=node.get("review_note"),
+                    reviewed_by=node.get("reviewed_by"),
                 ))
             return decisions
 
@@ -497,6 +499,47 @@ class Neo4jGraphStore:
             "summary": (
                 "Conflict resolved" if resolved else "Flagged for review (still open)"
             ),
+        }
+
+    def review_decision(
+        self,
+        decision_id: str,
+        action:      str,
+        note:        str | None = None,
+        reviewed_by: str | None = None,
+    ) -> dict[str, Any]:
+        """Apply a human review to one decision. See DecisionReviewRequest."""
+        status_map = {"approve": "confirmed", "reject": "reversed"}
+        if action not in ("approve", "reject", "comment"):
+            raise ValueError(f"Unknown review action {action!r}")
+        with self.driver.session() as session:
+            exists = session.run(
+                "MATCH (d:Decision {id: $id}) RETURN d", id=decision_id
+            ).single()
+            if not exists:
+                raise KeyError(f"Decision {decision_id!r} not found")
+
+            if action == "comment":
+                session.run(
+                    "MATCH (d:Decision {id: $id}) SET d.review_note = $note, d.reviewed_by = $by",
+                    id=decision_id, note=note, by=reviewed_by,
+                )
+                new_status = exists["d"].get("status")
+            else:
+                new_status = status_map[action]
+                session.run(
+                    """
+                    MATCH (d:Decision {id: $id})
+                    SET d.status = $status, d.review_note = $note, d.reviewed_by = $by
+                    """,
+                    id=decision_id, status=new_status, note=note, by=reviewed_by,
+                )
+        summary = {"approve": "Decision approved", "reject": "Decision rejected"}.get(action, "Comment added")
+        return {
+            "decision_id": decision_id,
+            "action":      action,
+            "new_status":  new_status,
+            "summary":     summary,
         }
 
     def get_all_topics(self) -> list[str]:

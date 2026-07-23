@@ -39,6 +39,7 @@ from backend.api.v1.search import router as search_router
 from backend.api.v1.status import router as status_router
 from backend.api.v1.governance import router as governance_router
 from backend.api.v1.conflicts import router as conflicts_router
+from backend.api.v1.decisions import router as decisions_router
 from backend.api.v1.demo import router as demo_router
 from backend.api.v1.health import router as health_router
 from backend.api.v1.meetings import router as meetings_router
@@ -118,6 +119,7 @@ app.include_router(search_router, prefix="/api/v1")
 app.include_router(status_router, prefix="/api/v1")
 app.include_router(governance_router, prefix="/api/v1")
 app.include_router(conflicts_router, prefix="/api/v1")
+app.include_router(decisions_router, prefix="/api/v1")
 app.include_router(demo_router, prefix="/api/v1")
 app.include_router(health_router, prefix="/api/v1")
 app.include_router(meetings_router, prefix="/api/v1")

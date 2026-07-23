@@ -1,9 +1,12 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { ClipboardCheck, Sparkles, ChevronDown, ArrowRightLeft, AlertTriangle, ShieldCheck } from 'lucide-react';
-import { apiClient, BriefingOutput, ConflictRecord, Decision, MeetingSummary } from '../api/client';
+import { ClipboardCheck, Sparkles, ChevronDown, ArrowRightLeft, AlertTriangle, ShieldCheck, Check, X, MessageSquarePlus, Loader2, UserCheck } from 'lucide-react';
+import { apiClient, BriefingOutput, ConflictRecord, Decision, MeetingSummary, DecisionReviewAction } from '../api/client';
 import { StatusPill, EmptyState, SkeletonLines, InfoTip } from '../components/ui';
 import { meetingLabel } from '../components/SourceBadge';
+import { useToast } from '../state/app';
+
+const currentUser = () => localStorage.getItem('tesseract-user') || 'You';
 
 const WHY_CHANGED_EXPLAINER =
   "Captured from the meeting where this decision's status changed — the model's stated reason " +
@@ -25,12 +28,40 @@ function confidenceColor(score: number): string {
   return 'var(--green)';
 }
 
-const DecisionRow: React.FC<{ d: Decision; conflicts: ConflictRecord[] }> = ({ d, conflicts }) => {
+const DecisionRow: React.FC<{ d: Decision; conflicts: ConflictRecord[]; onChanged: () => void }> = ({ d, conflicts, onChanged }) => {
+  const { notify } = useToast();
   const [open, setOpen] = useState(false);
+  const [busy, setBusy] = useState<DecisionReviewAction | null>(null);
+  const [commentOpen, setCommentOpen] = useState(false);
+  const [comment, setComment] = useState('');
   const muted = d.status === 'superseded' || d.status === 'reversed';
   const changed = d.status === 'superseded' || d.status === 'reversed' || d.status === 'under_review';
   const hasDetail = !!(d.rationale || d.owner || d.supersedes_decision_id || (changed && d.status_reason) ||
     (d.contradicts_decision_ids && d.contradicts_decision_ids.length));
+
+  async function review(action: DecisionReviewAction) {
+    setBusy(action);
+    try {
+      await apiClient.reviewDecision(d.id, {
+        action,
+        note: comment.trim() || undefined,
+        reviewed_by: currentUser(),
+      });
+      notify(
+        action === 'approve' ? 'Decision approved.'
+        : action === 'reject' ? 'Decision rejected.'
+        : 'Comment saved.',
+        'success'
+      );
+      setComment('');
+      setCommentOpen(false);
+      onChanged();
+    } catch (e: any) {
+      notify(e.message || 'Could not save your review.', 'error');
+    } finally {
+      setBusy(null);
+    }
+  }
 
   const relatedConflicts = conflicts.filter(
     (c) => c.fact_a_id === d.id || c.fact_b_id === d.id ||
@@ -127,6 +158,52 @@ const DecisionRow: React.FC<{ d: Decision; conflicts: ConflictRecord[] }> = ({ d
           )}
 
           {!hasDetail && relatedConflicts.length === 0 && <div className="muted" style={{ fontSize: 13 }}>No additional details were captured for this decision.</div>}
+
+          {/* ── Human review ─────────────────────────────────────────────── */}
+          {d.review_note && (
+            <div style={{ marginTop: 4, borderTop: '1px solid var(--border)', paddingTop: 10 }} className="stack-sm">
+              <div className="row" style={{ gap: 6, marginBottom: 2 }}>
+                <UserCheck size={13} color="var(--accent)" />
+                <span style={{ fontSize: 11.5, fontWeight: 600, letterSpacing: '0.04em', textTransform: 'uppercase', color: 'var(--text-muted)' }}>
+                  Your team's note{d.reviewed_by ? ` · ${d.reviewed_by}` : ''}
+                </span>
+              </div>
+              <div style={{ fontSize: 13.5, lineHeight: 1.55, color: 'var(--text-2)', fontStyle: 'italic' }}>"{d.review_note}"</div>
+            </div>
+          )}
+
+          <div style={{ marginTop: 4, borderTop: '1px solid var(--border)', paddingTop: 12 }} className="stack-sm">
+            <div style={{ fontSize: 11.5, fontWeight: 600, letterSpacing: '0.04em', textTransform: 'uppercase', color: 'var(--text-muted)' }}>Your review</div>
+            {!commentOpen ? (
+              <div className="row wrap" style={{ gap: 8 }}>
+                <button className="btn btn-outline btn-sm" disabled={!!busy} onClick={() => review('approve')}>
+                  {busy === 'approve' ? <Loader2 size={15} className="spin" /> : <Check size={15} />} Approve
+                </button>
+                <button className="btn btn-outline btn-sm" disabled={!!busy} onClick={() => review('reject')}>
+                  {busy === 'reject' ? <Loader2 size={15} className="spin" /> : <X size={15} />} Reject
+                </button>
+                <button className="btn btn-ghost btn-sm" disabled={!!busy} onClick={() => setCommentOpen(true)}>
+                  <MessageSquarePlus size={15} /> Comment
+                </button>
+              </div>
+            ) : (
+              <div className="stack-sm">
+                <textarea
+                  className="textarea"
+                  placeholder="Add a note for your team — e.g. “Confirmed with legal, this is fine to keep.”"
+                  value={comment}
+                  onChange={(e) => setComment(e.target.value)}
+                  autoFocus
+                />
+                <div className="row wrap" style={{ gap: 8, alignItems: 'center' }}>
+                  <button className="btn btn-primary btn-sm" disabled={busy === 'comment' || !comment.trim()} onClick={() => review('comment')}>
+                    {busy === 'comment' ? <Loader2 size={15} className="spin" /> : <MessageSquarePlus size={15} />} Save comment
+                  </button>
+                  <button className="btn btn-ghost btn-sm" disabled={!!busy} onClick={() => { setCommentOpen(false); setComment(''); }}>Cancel</button>
+                </div>
+              </div>
+            )}
+          </div>
         </div>
       )}
     </div>
@@ -198,7 +275,7 @@ export const DecisionsView: React.FC = () => {
               {date && <span className="muted" style={{ fontSize: 12.5 }}>{date}</span>}
             </div>
             <div className="stack-sm">
-              {items.map((d) => <DecisionRow key={d.id} d={d} conflicts={conflicts} />)}
+              {items.map((d) => <DecisionRow key={d.id} d={d} conflicts={conflicts} onChanged={load} />)}
             </div>
           </section>
         );

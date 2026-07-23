@@ -15,7 +15,11 @@ export interface Decision {
   supersedes_decision_id?: string;
   contradicts_decision_ids?: string[];
   status_reason?: string | null;
+  review_note?: string | null;
+  reviewed_by?: string | null;
 }
+
+export type DecisionReviewAction = 'approve' | 'reject' | 'comment';
 
 export interface ActionItem {
   id: string;
@@ -228,6 +232,25 @@ export const apiClient = {
     );
     if (!res.ok) {
       const msg = res.status === 404 ? 'That conflict no longer exists.' : 'Could not save your decision.';
+      throw new Error(msg);
+    }
+    return res.json();
+  },
+
+  async reviewDecision(
+    decisionId: string,
+    body: { action: DecisionReviewAction; note?: string; reviewed_by?: string }
+  ): Promise<{ status: string; result: any }> {
+    const res = await fetch(
+      `${API_BASE_URL}/api/v1/decisions/${encodeURIComponent(decisionId)}/review`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      }
+    );
+    if (!res.ok) {
+      const msg = res.status === 404 ? 'That decision no longer exists.' : 'Could not save your review.';
       throw new Error(msg);
     }
     return res.json();
