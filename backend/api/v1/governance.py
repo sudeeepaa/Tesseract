@@ -41,3 +41,23 @@ async def purge_person_data(
             status_code=500,
             detail=f"Failed to execute GDPR purge cascading delete: {str(e)}"
         )
+
+
+@router.post("/reset-vectors")
+async def reset_vectors(
+    vector_store: VectorStore = Depends(get_vector_store),
+) -> dict:
+    """
+    Wipe and rebuild the vector index from scratch. Recovery tool for vectors
+    orphaned by meetings deleted or reset outside the normal cascade (their
+    owning meeting no longer exists anywhere to filter a delete by) — those
+    points linger forever and pollute every search result. Re-ingest meetings
+    afterward to rebuild the index.
+    """
+    logger.warning("Governance API: full vector store reset requested")
+    try:
+        result = vector_store.reset_all()
+        return {"status": "success", "result": result}
+    except Exception as e:
+        logger.error("Governance API: vector reset failed: %s", e)
+        raise HTTPException(status_code=500, detail=f"Failed to reset vector store: {str(e)}")

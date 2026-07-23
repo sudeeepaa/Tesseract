@@ -249,3 +249,29 @@ class QdrantVectorStore:
                 "error": str(e)
             }
 
+    def reset_all(self) -> dict[str, Any]:
+        """
+        Drop and recreate the collection from scratch. Recovery tool for
+        vectors orphaned by out-of-band data changes (e.g. a meeting deleted
+        or reset outside this store's own delete_meeting/purge_person paths,
+        which only ever filter by a payload field and can't reach points
+        whose owning meeting no longer exists anywhere to be looked up).
+        """
+        try:
+            self.client.delete_collection(collection_name=self.collection_name)
+            logger.warning("Qdrant: dropped collection %s for full reset", self.collection_name)
+        except Exception as e:
+            logger.warning("Qdrant reset_all: drop failed (may not have existed): %s", e)
+        try:
+            self.client.create_collection(
+                collection_name=self.collection_name,
+                vectors_config=qmodels.VectorParams(
+                    size=self.embedding_dim,
+                    distance=qmodels.Distance.COSINE
+                )
+            )
+            return {"status": "success", "collection": self.collection_name, "embedding_dim": self.embedding_dim}
+        except Exception as e:
+            logger.error("Qdrant reset_all: recreate failed: %s", e)
+            return {"status": "error", "error": str(e)}
+

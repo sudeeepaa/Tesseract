@@ -44,6 +44,11 @@ class VectorStore(Protocol):
     def get_status(self) -> dict[str, Any]: ...
     def purge_person(self, person_name: str) -> dict[str, Any]: ...
     def delete_meeting(self, meeting_id: str) -> dict[str, Any]: ...
+    def reset_all(self) -> dict[str, Any]:
+        """Wipe every indexed vector, regardless of which meeting owns it.
+        Recovery tool for orphaned/stale vectors left by out-of-band data
+        changes; content is expected to be rebuilt via re-ingestion."""
+        ...
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -209,6 +214,13 @@ class InMemoryVectorStore:
             "meeting_id": meeting_id,
             "removed_vectors": removed,
         }
+
+    def reset_all(self) -> dict[str, Any]:
+        """Wipe every indexed fact/embedding, regardless of meeting ownership."""
+        removed = len(self._facts)
+        self._facts = []
+        self._embeddings = []
+        return {"status": "success", "removed_vectors": removed}
 
 
 # ─────────────────────────────────────────────────────────────────────────────
