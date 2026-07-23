@@ -11,6 +11,7 @@ import { AskView } from './views/Ask';
 import { MapView } from './views/Map';
 import { AddMeetingView } from './views/AddMeeting';
 import { SettingsView } from './views/Settings';
+import { LandingView } from './views/Landing';
 
 /* ── Splash screen ──────────────────────────────────────────────────────────── */
 const SPLASH_DURATION = 1500;  // ms before fade-out starts
@@ -97,6 +98,7 @@ export const App: React.FC = () => {
         <Shell>
           <Routes>
             <Route path="/" element={<HomeView />} />
+            <Route path="/landing" element={<LandingView />} />
             <Route path="/meetings" element={<MeetingsView />} />
             <Route path="/decisions" element={<DecisionsView />} />
             <Route path="/tasks" element={<ActionItemsView />} />

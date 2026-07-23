@@ -2,12 +2,13 @@ import React, { useEffect, useState } from 'react';
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import {
   Home, ClipboardCheck, ListTodo, MessageCircleQuestion, Share2,
-  Settings, Plus, Bell, Sun, Moon, Menu, CalendarDays,
+  Settings, Plus, Bell, Sun, Moon, Menu, CalendarDays, Compass,
 } from 'lucide-react';
 import { useAppData, useTheme } from '../state/app';
 import { SystemStatus } from './SystemStatus';
 
 const NAV = [
+  { to: '/landing',   label: 'Overview & Purpose', icon: Compass },
   { to: '/',          label: 'Command Center', icon: Home,                  end: true },
   { to: '/meetings',  label: 'Meetings',       icon: CalendarDays },
   { to: '/decisions', label: 'Decisions',      icon: ClipboardCheck },
@@ -17,6 +18,7 @@ const NAV = [
 ];
 
 const TITLES: Record<string, string> = {
+  '/landing': 'Overview & Platform Purpose',
   '/': 'Command Center', '/meetings': 'Meetings', '/decisions': 'Decisions',
   '/tasks': 'Action items', '/ask': 'Ask your meetings', '/map': 'Relationships',
   '/add': 'Add a meeting', '/settings': 'Settings',

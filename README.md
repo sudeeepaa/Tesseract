@@ -1,187 +1,236 @@
-# Tesseract - Intelligence Pipeline
+<div align="center">
 
-Tesseract is a production-quality meeting intelligence pipeline that processes meeting transcripts, extracts structured decisions/actions/entities, tracks decision lifecycles across multiple meetings (handling updates, review states, and supersession), flags logical contradictions, and renders an auto-updating executive briefing dashboard.
+# 💎 Tesseract (ThreadLine)
+### *Enterprise Multi-Agent Meeting Intelligence & Executive Chief of Staff*
+
+[![Python 3.11](https://img.shields.io/badge/Python-3.11-3776AB?style=for-the-badge&logo=python&logoColor=white)](https://python.org)
+[![FastAPI](https://img.shields.io/badge/FastAPI-0.111-009688?style=for-the-badge&logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com)
+[![React 18](https://img.shields.io/badge/React-18.3-61DAFB?style=for-the-badge&logo=react&logoColor=black)](https://react.dev)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.5-3178C6?style=for-the-badge&logo=typescript&logoColor=white)](https://typescriptlang.org)
+[![Neo4j](https://img.shields.io/badge/Neo4j-5.20-008CC1?style=for-the-badge&logo=neo4j&logoColor=white)](https://neo4j.com)
+[![Qdrant](https://img.shields.io/badge/Qdrant-1.18-DC2626?style=for-the-badge&logo=qdrant&logoColor=white)](https://qdrant.tech)
+[![Lyzr Studio](https://img.shields.io/badge/Lyzr_Studio-Primary_Orchestrator-7C3AED?style=for-the-badge)](https://lyzr.ai)
+[![Google ADK](https://img.shields.io/badge/Google_ADK-A2A_Protocol-4285F4?style=for-the-badge&logo=google&logoColor=white)](https://google.ai)
+
+<p align="center">
+  <b>Tesseract is an enterprise-grade AI Chief of Staff platform that does not just transcribe meetings into dead text — it UNDERSTANDS decision lifecycles, TRACKS cross-meeting supersession chains, and REMEMBERS organizational context.</b>
+</p>
+
+[Explore Overview](#-key-features) • [System Architecture](#-system-architecture) • [Getting Started](#-getting-started) • [API Reference](#-api-reference)
 
 ---
 
-> [!IMPORTANT]
-> **SCOPE & ARCHITECTURE NOTE: Demo-Safe vs Enterprise Target**
-> This repository is configured to prioritize **lightweight, demo-safe reliability** while fully satisfying all **enterprise-grade compliance contracts**. 
-> - **Orchestration Layer**: Uses a hybrid approach with **Lyzr Studio** (primary) and an in-process **Google ADK RemoteA2aAgent** runner fallback. In testing or offline environments, it runs entirely in-process to guarantee a crash-free presentation.
-> - **Agent Isolation (A2A)**: Rather than running five distinct microservices (each with its own deployment and handshake failures), all agents (Input, Extraction, Graph Writer, Semantic Memory, Briefing, Manager) are deployed as **ASGI sub-apps** mounted directly under the main FastAPI parent process, communicating via A2A protocol semantic paths.
-> - **Database Fallbacks**: Automatically degrades to `InMemoryGraphStore` and `InMemoryVectorStore` (utilizing deterministic hash-based mock embeddings) if Neo4j or Qdrant Docker containers are offline.
-> - **Explainability & Security**: Employs parameterized Neo4j Cypher query disarming, input validation sanitizers, a cascaded GDPR purge engine, and confidence score reasoning traces for all contradiction and stale-item flags.
+</div>
+
+## 📌 Executive Summary
+
+Existing AI tools like Otter.ai, Fireflies, or Zoom AI transcribe meetings into isolated walls of text. They treat every meeting as an island, failing to answer critical questions:
+* *What was actually decided?*
+* *Did today's decision contradict a decision made 3 weeks ago?*
+* *Is that architectural choice still valid, or was it superseded?*
+
+**Tesseract solves this by building a persistent, multi-agent organizational memory.** It combines **Neo4j Knowledge Graphs** (for tracking decision evolution) with **Qdrant Vector Storage** (for natural language semantic memory), coordinated by a **Lyzr Studio & Google ADK multi-agent fleet**.
 
 ---
 
-## 1. System Architecture
+## ✨ Key Features
 
+### 🔄 1. Cross-Meeting Decision Lifecycle Tracking
+Decisions are modeled as stateful entities with a formal lifecycle:
+`proposed → confirmed → under_review → superseded`
+* Automatically creates `SUPERSEDES` links when a new meeting replaces a previous decision.
+* Maintains a full lineage audit trail so no historical rationale is lost.
+
+### ⚔️ 2. Contradiction & Conflict Resolution Engine
+* Automatically cross-references newly extracted claims against prior decisions.
+* Detects logical conflicts (e.g., Auth0 vs. EU Data Residency regulations) with confidence scores and reasoning traces.
+* Provides a human-in-the-loop **"Keep / Switch / Flag"** resolution dashboard.
+
+### 🧠 3. Dual Graph & Vector Memory
+* **Neo4j Knowledge Graph:** Maps entities, decisions, action items, and topic relationships as connected graph nodes.
+* **Qdrant Vector Index:** Embeds extracted facts into 384-dimensional space via `all-MiniLM-L6-v2` or `Gemini Embeddings` for fast similarity search.
+
+### 🛡️ 4. GDPR Article 17 Cascading Purge
+* Implements a compliance engine (`DELETE /api/v1/governance/purge/{name}`) to scrub speaker identity metadata across Qdrant vector points and Neo4j graph nodes without corrupting decision records.
+
+### ⚡ 5. Zero-Dependency Graceful Degradation
+* Automatically falls back to `InMemoryGraphStore` and `InMemoryVectorStore` (with deterministic hash embeddings) if Neo4j or Qdrant cloud services are unreachable, ensuring 100% demo availability.
+
+---
+
+## 🏗 System Architecture
+
+```mermaid
+flowchart TD
+    subgraph Frontend ["Frontend (Vite / React 18 / TypeScript)"]
+        UI["Notion-Style Command Center UI"]
+        D3["D3-Force Relationship Graph"]
+        SSE_Client["SSE Live Stream Listener"]
+    end
+
+    subgraph Backend ["FastAPI Parent Application"]
+        API["REST & SSE Endpoints (/api/v1/*)"]
+        
+        subgraph Agents ["6 Specialized AI Agents (A2A Protocol /a2a/*)"]
+            Manager["Manager Agent (Lyzr Primary / ADK Fallback)"]
+            Input["Input Agent (Gemini Audio / Whisper)"]
+            Extract["Extraction Agent (LangGraph + Gemini / GPT-4o-mini)"]
+            GraphWriter["Graph Writer Agent (MCP Tools)"]
+            Memory["Semantic Memory Agent (MCP Tools)"]
+            Briefing["Briefing Agent (Template Engine)"]
+        end
+
+        subgraph MCP ["MCP Tool Layer (JSON-RPC Boundaries)"]
+            GraphMCP["Graph MCP Tools"]
+            VectorMCP["Vector MCP Tools"]
+        end
+    end
+
+    subgraph Storage ["Persistent Dual-Storage Layer"]
+        Neo4j[("Neo4j 5.20 Graph Database")]
+        Qdrant[("Qdrant v1.18 Vector Index")]
+        InMem[("In-Memory Fallback Stores")]
+    end
+
+    UI -->|REST / SSE| API
+    API --> Manager
+    Manager --> Input
+    Input --> Extract
+    Extract --> GraphWriter
+    Extract --> Memory
+    Manager --> Briefing
+
+    GraphWriter -->|Cypher Queries| GraphMCP
+    Memory -->|Embeddings| VectorMCP
+    
+    GraphMCP --> Neo4j
+    GraphMCP -.-> InMem
+    VectorMCP --> Qdrant
+    VectorMCP -.-> InMem
 ```
-┌─────────────────────────────────────────────────────────────────────────┐
-│                            Tesseract System                             │
-│                                                                          │
-│  ┌────────────────────────────────┐                                      │
-│  │       React + TypeScript       │  Upload · Briefing · Graph · Search  │
-│  │       Frontend (Vite)          │◄──── SSE (pipeline progress) ────┐   │
-│  └──────────────┬─────────────────┘                                  │   │
-│                 │ REST + SSE                                          │   │
-│  ┌──────────────▼─────────────────────────────────────────────┐      │   │
-│  │                   FastAPI Backend  (/backend)               │      │   │
-│  │  POST /api/v1/pipeline/run  (starts processing)            │──────┘   │
-│  │  GET  /api/v1/pipeline/status/{id} (polls audio jobs)       │          │
-│  │  GET  /api/v1/briefing                                      │          │
-│  │  GET  /api/v1/graph                                         │          │
-│  │  POST /api/v1/search                                        │          │
-│  │  GET  /api/v1/health                                        │          │
-│  │  DELETE /api/v1/governance/purge/{name} (GDPR Purge)        │          │
-│  └──────────────┬─────────────────────────────────────────────┘          │
-│                 │ dispatches to                                            │
-│  ┌──────────────▼─────────────────────────────────────────────┐          │
-│  │               tesseract/  (core Python package)            │          │
-│  │                                                             │          │
-│  │  A2A Sub-mounts:                                            │          │
-│  │  - /a2a/input            - /a2a/graph-writer                │          │
-│  │  - /a2a/extraction       - /a2a/semantic-memory             │          │
-│  │  - /a2a/briefing         - /a2a/manager                     │          │
-│  │                                                             │          │
-│  │                    ┌──────────┴──────────┐                 │          │
-│  │                    ▼                      ▼                 │          │
-│  │             GraphStore              VectorStore             │          │
-│  │          (Neo4j / InMemory)      (Qdrant / InMemory)       │          │
-│  └─────────────────────────────────────────────────────────────┘          │
-│                                                                            │
-│  ┌──────────────────────────┐  ┌──────────────────────────┐                │
-│  │  Neo4j  (Docker :7687)   │  │  Qdrant (Docker :6333)   │                │
-│  └──────────────────────────┘  └──────────────────────────┘                │
-└────────────────────────────────────────────────────────────────────────────┘
-```
 
 ---
 
-## 2. Agent Framework Setup
+## 🤖 AI Agent Workflow
 
-Tesseract is built using real agent abstractions:
-- **Input Handling Agent** ([input_agent.py](file:///c:/SattyGithub/ThreadLine/threadline/agents/input_agent.py)): Handles transcript reading and multimodal Gemini-based audio transcription.
-- **Extraction Agent** ([extraction_agent.py](file:///c:/SattyGithub/ThreadLine/threadline/agents/extraction_agent.py)): Leverages a minimal LangGraph state graph with a 3× retry loop to extract entities, decisions, and conflicts.
-- **Graph Writer Agent** ([graph_writer_agent.py](file:///c:/SattyGithub/ThreadLine/threadline/agents/graph_writer_agent.py)): Saves extracted structured data into the Neo4j Graph Store using custom MCP tool wrappers.
-- **Semantic Memory Agent** ([semantic_memory_agent.py](file:///c:/SattyGithub/ThreadLine/threadline/agents/semantic_memory_agent.py)): Embeds and indexes claims in the Qdrant Vector Store.
-- **Briefing Agent** ([briefing_agent.py](file:///c:/SattyGithub/ThreadLine/threadline/agents/briefing_agent.py)): Compiles the historical state into a comprehensive Markdown briefing.
-- **Manager Agent** ([manager_agent.py](file:///c:/SattyGithub/ThreadLine/threadline/agents/manager_agent.py)): A hybrid client coordinator that uses **Lyzr Studio** (primary) for orchestration and falls back to **Google ADK RemoteA2aAgent** running locally when Lyzr is unreachable.
+| Agent | Core Responsibility | Primary Engine | Fallback Engine |
+|---|---|---|---|
+| 👑 **Manager Agent** | Orchestrates full meeting processing pipeline | Lyzr Studio API | Google ADK `RemoteA2aAgent` |
+| 📥 **Input Agent** | Ingests text files & transcribes audio files | Gemini Flash Multimodal Audio | OpenAI Whisper API (`whisper-1`) |
+| 🧠 **Extraction Agent** | Structured JSON fact & conflict extraction | LangGraph + Gemini Flash Lite | OpenAI `gpt-4o-mini` |
+| ✍️ **Graph Writer Agent** | Persists decisions, entities & supersessions to Neo4j | Graph MCP Tools | InMemoryGraphStore |
+| 🔍 **Semantic Memory Agent**| Vector-indexes facts & claims for search | Qdrant Vector MCP | InMemoryVectorStore (Hash) |
+| 📄 **Briefing Agent** | Generates executive summaries & conflict alerts | Jinja2 / Markdown Template | Static Executive Summarizer |
 
 ---
 
-## 3. Quickstart Guide
+## 🛠 Technology Stack
+
+* **Frontend:** React 18, TypeScript, Vite, React Router v6, D3-Force Graph (`react-force-graph-2d`), Lucide Icons, `react-dropzone`.
+* **Backend:** FastAPI, Uvicorn, Pydantic v2 (`pydantic-settings`), Python 3.11, `python-multipart`, SSE Streaming.
+* **AI & Agent Frameworks:** Lyzr Studio API, Google ADK (`google-adk[a2a]`), LangGraph, OpenAI SDK, Google Generative AI SDK.
+* **Databases:** Neo4j 5.20 (Knowledge Graph), Qdrant v1.18 (Vector DB), In-Memory Stubs.
+* **Embeddings:** `all-MiniLM-L6-v2` (384-dim), `models/gemini-embedding-001` (384-dim Matryoshka), Hash-based fallback.
+* **Deployment:** Vercel (Frontend), Render (FastAPI Backend), Docker Compose (Local Dev DBs).
+
+---
+
+## 🚀 Getting Started
 
 ### Prerequisites
-- Python 3.9+ installed
-- Node.js (v18+) & npm installed
-- Docker & Docker Compose (optional; fallback in-memory stores are used automatically if Docker is offline)
+* **Python:** 3.11+
+* **Node.js:** 18+
+* **Docker:** (Optional, for local Neo4j & Qdrant)
 
-### Step 1: Environment Setup
-Copy the environment variables template and configure your API keys:
+### 1. Repository Setup
+
 ```bash
-cp .env.example .env
+git clone https://github.com/sudeeepaa/Tesseract.git
+cd ThreadLine
 ```
-Open `.env` and fill in the values. See below for detailed instructions on obtaining key credentials.
 
-### Step 2: Spin up Databases (Optional)
-If Docker is installed and running:
+### 2. Backend Setup
+
 ```bash
-docker-compose up -d
-```
-This spins up **Neo4j** (Bolt: port 7687, Browser UI: port 7474) and **Qdrant** (API: port 6333) with persistent volumes.
+# Create and activate virtual environment
+python -m venv .venv
+# Windows:
+.venv\Scripts\activate
+# Linux/macOS:
+source .venv/bin/activate
 
-### Step 3: Run FastAPI Backend
-Install python dependencies and start the local FastAPI web server:
+# Install dependencies
+pip install -r requirements.txt
+```
+
+Create a `.env` file in the root directory:
+
+```env
+# LLM Backend
+EXTRACTOR_BACKEND=gemini
+GEMINI_API_KEY=your_gemini_api_key
+GEMINI_MODEL=gemini-flash-lite-latest
+
+# Lyzr Studio (Primary Orchestrator)
+LYZR_API_KEY=your_lyzr_api_key
+LYZR_AGENT_ID=your_lyzr_agent_id
+
+# Neo4j Graph Database
+GRAPH_BACKEND=neo4j
+NEO4J_URI=neo4j+ssc://your-instance.databases.neo4j.io
+NEO4J_USER=f3074b19
+NEO4J_PASSWORD=your_neo4j_password
+
+# Qdrant Vector Database
+VECTOR_BACKEND=qdrant
+QDRANT_URL=https://your-instance.cloud.qdrant.io
+QDRANT_API_KEY=your_qdrant_api_key
+
+# Embeddings
+EMBEDDING_BACKEND=sentence_transformers
+EMBEDDING_MODEL=all-MiniLM-L6-v2
+EMBEDDING_DIM=384
+```
+
+Start the local backend server:
+
 ```bash
-pip install -e ".[dev]"
-uvicorn backend.main:app --reload --port 8000
+uvicorn backend.main:app --reload --host 0.0.0.0 --port 8000
 ```
-The API documentation is accessible at `http://localhost:8000/docs`.
 
-### Step 4: Run React Frontend
-Navigate to the `frontend` directory, install dependencies, and start Vite development server:
+### 3. Frontend Setup
+
 ```bash
 cd frontend
 npm install
+
+# Start Vite dev server
 npm run dev
 ```
-Open your browser and navigate to `http://localhost:5173`.
+
+Open `http://localhost:5173` in your browser.
 
 ---
 
-## 4. How to Obtain Environment Variables
+## 🔌 API Reference Table
 
-### A. LLM & Extraction Keys
-*   `EXTRACTOR_BACKEND`: `openai` to use GPT models, `gemini` to use Google models, or `mock` to run offline without spending credentials.
-*   `OPENAI_API_KEY`: 
-    1. Log in to the [OpenAI Platform](https://platform.openai.com/).
-    2. Go to **API Keys** -> **Create new secret key**.
-*   `GEMINI_API_KEY`:
-    1. Log in to [Google AI Studio](https://aistudio.google.com/).
-    2. Click **Get API Key** -> **Create API Key**.
-
-### B. Neo4j Graph Store Credentials
-*   `GRAPH_BACKEND`: Set to `neo4j` (or `memory` for offline mock mode).
-*   `NEO4J_URI`: Binds to `bolt://localhost:7687` for local Docker setups. For Neo4j Aura (cloud), paste your instance's `neo4j+s://...` URI.
-*   `NEO4J_USER` / `NEO4J_PASSWORD`: Local defaults are `neo4j` and `threadline_dev`. For Aura, use the credentials provided upon database creation.
-
-### C. Qdrant Vector Store Credentials
-*   `VECTOR_BACKEND`: Set to `qdrant` (or `memory` for offline mock mode).
-*   `QDRANT_URL`: Set to `http://localhost:6333` locally. For Qdrant Cloud, copy your cluster endpoint URL.
-*   `QDRANT_API_KEY`: Leave blank for local Docker. For Qdrant Cloud, create a key under **API Keys**.
-
-### D. Lyzr Studio Credentials (Manager Agent)
-*   `LYZR_API_KEY`: 
-    1. Go to [Lyzr Studio Console](https://studio.lyzr.ai/).
-    2. Generate an API Key under Account Settings.
-*   `LYZR_AGENT_ID`:
-    1. Create an orchestrator agent in the Lyzr Studio UI.
-    2. Copy the **Agent ID** string from the dashboard.
+| Method | Endpoint | Description |
+|---|---|---|
+| `GET` | `/api/v1/health` | Service health status |
+| `GET` | `/api/v1/status` | Connectivity details for Neo4j, Qdrant, and LLM backends |
+| `POST` | `/api/v1/pipeline/run` | Triggers meeting processing pipeline (SSE Stream) |
+| `GET` | `/api/v1/meetings` | Returns list of ingested meetings and summaries |
+| `GET` | `/api/v1/briefing` | Returns executive briefing and decision lifecycle feeds |
+| `GET` | `/api/v1/graph` | Returns nodes and edges for D3 relationship graph |
+| `GET` | `/api/v1/conflicts` | Returns active logical contradictions needing resolution |
+| `POST` | `/api/v1/conflicts/resolve` | Human-in-the-loop conflict resolution (`keep`/`switch`/`flag`) |
+| `POST` | `/api/v1/search` | Semantic natural language search over Qdrant memory |
+| `POST` | `/api/v1/demo/seed` | Seeds sample meetings from `data/Demo` |
+| `DELETE` | `/api/v1/governance/purge/{name}` | GDPR Article 17 cascading speaker PII purge |
 
 ---
 
-## 5. Running Automated Tests
+## ⚖️ License & Acknowledgments
 
-Tesseract includes a thorough suite of unit and integration tests.
-
-### Running Unit Tests (In-memory, zero credentials needed)
-To run the lightweight offline tests:
-```bash
-pytest -v
-```
-
-### Running Live Integration Tests (Requires active credentials/Docker services)
-To trigger testing against your live Neo4j, Qdrant, Lyzr Studio, and Gemini API endpoints:
-```bash
-# Windows PowerShell
-$env:THREADLINE_INTEGRATION="1"
-pytest -v
-
-# Linux/macOS
-THREADLINE_INTEGRATION=1 pytest -v
-```
-
----
-
-## 6. Live Demo Script (Panel Presentation)
-
-During your presentation, you can demonstrate Tesseract's unique ability to track decision lifecycles across meetings:
-
-1. **Upload meeting_01.txt (Project Kickoff)**
-   - Configures stack: React, FastAPI, Postgres, and Auth0.
-   - Statuses are set to `confirmed`.
-2. **Upload meeting_02.txt (Sprint review)**
-   - Databases switch: Postgres is replaced by MongoDB Atlas.
-   - The graph shows `MongoDB` **superseding** `PostgreSQL`.
-3. **Upload meeting_03.txt (Security Review)**
-   - Auth0 is flagged for GDPR concerns.
-   - The Auth0 decision status changes to `under_review` (not superseded).
-   - An amber **Contradiction Alert** pops up on the dashboard showing a confidence score and a detailed reasoning trace explaining the conflict.
-4. **Upload meeting_04.txt (Resolution Call)**
-   - Keycloak is confirmed as the new auth provider.
-   - Auth0 status transitions to `superseded` by `Keycloak`.
-   - The **Contradiction is resolved** and flags clear on the dashboard.
-5. **GDPR Cascade Purge**
-   - Execute a `DELETE /api/v1/governance/purge/Dev Rao`.
-   - Show that Dev Rao's metadata speaker references are wiped from vector chunks and graph nodes, while decisions themselves remain intact with owner fields set to null.
+Built for hackathon demonstration with production-grade architecture patterns.
+Special thanks to the **Lyzr Studio**, **Google ADK**, **Neo4j**, and **Qdrant** teams!
