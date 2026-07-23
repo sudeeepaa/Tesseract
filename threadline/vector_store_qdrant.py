@@ -65,6 +65,25 @@ class QdrantVectorStore:
                 )
             )
             logger.info("Created Qdrant collection: %s", self.collection_name)
+        self._ensure_payload_indexes()
+
+    def _ensure_payload_indexes(self) -> None:
+        """
+        Qdrant requires an explicit payload index before a field can be used in
+        a delete/search Filter — without it, delete_meeting/purge_person raise
+        400 Bad Request and silently no-op (caught and swallowed as an error
+        dict), leaving those vectors permanently orphaned. Idempotent: safe to
+        call on every startup, including against an already-indexed collection.
+        """
+        for field in ("source_meeting_id", "speaker"):
+            try:
+                self.client.create_payload_index(
+                    collection_name=self.collection_name,
+                    field_name=field,
+                    field_schema=qmodels.PayloadSchemaType.KEYWORD,
+                )
+            except Exception as e:
+                logger.debug("Qdrant payload index for %r: %s (likely already exists)", field, e)
 
     # ── Embedding generation (pluggable: gemini | sentence-transformers | hash) ─
 
@@ -270,6 +289,7 @@ class QdrantVectorStore:
                     distance=qmodels.Distance.COSINE
                 )
             )
+            self._ensure_payload_indexes()
             return {"status": "success", "collection": self.collection_name, "embedding_dim": self.embedding_dim}
         except Exception as e:
             logger.error("Qdrant reset_all: recreate failed: %s", e)
