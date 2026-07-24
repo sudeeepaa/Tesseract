@@ -172,6 +172,20 @@ export const apiClient = {
     return res.json();
   },
 
+  /** Lightweight liveness check for the cold-start gate. Resolves true once the
+   *  backend answers /health, false on any error/timeout (e.g. Render spin-up). */
+  async ping(timeoutMs = 6000): Promise<boolean> {
+    try {
+      const ctrl = new AbortController();
+      const t = setTimeout(() => ctrl.abort(), timeoutMs);
+      const res = await fetch(`${API_BASE_URL}/api/v1/health`, { signal: ctrl.signal });
+      clearTimeout(t);
+      return res.ok;
+    } catch {
+      return false;
+    }
+  },
+
   async getBriefing(): Promise<BriefingOutput> {
     const res = await fetch(`${API_BASE_URL}/api/v1/briefing`);
     if (!res.ok) throw new Error('Failed to fetch briefing');

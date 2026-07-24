@@ -1,6 +1,8 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import { Loader2 } from 'lucide-react';
 import { AppProviders } from './state/app';
+import { apiClient } from './api/client';
 import { Shell } from './components/Shell';
 
 import { HomeView } from './views/Home';
@@ -13,9 +15,12 @@ import { AddMeetingView } from './views/AddMeeting';
 import { SettingsView } from './views/Settings';
 import { LandingView } from './views/Landing';
 
-/* ── Splash screen ──────────────────────────────────────────────────────────── */
-const SPLASH_DURATION = 1500;  // ms before fade-out starts
-const FADE_OUT = 400;          // ms for the fade-out transition
+/* ── Boot gate / splash ─────────────────────────────────────────────────────── */
+const MIN_SPLASH = 900;   // keep the brand on screen at least this long (warm start)
+const COLD_AFTER = 2500;  // if the backend hasn't answered by now, show the cold-start note
+const SLOW_AFTER = 45000; // reassure the user if it's really taking a while
+const FADE_OUT = 400;     // ms for the fade-out transition
+const POLL_EVERY = 2000;  // gap between health pings while waking the backend
 
 const splashStyles: Record<string, React.CSSProperties> = {
   wrapper: {
@@ -61,14 +66,41 @@ const splashStyles: Record<string, React.CSSProperties> = {
   },
 };
 
-const SplashScreen: React.FC<{ onDone: () => void }> = ({ onDone }) => {
+/** Branded splash that doubles as a cold-start gate: it pings the backend and
+ *  stays on screen (with a "waking up" note) until the server responds, so a
+ *  Render free-tier spin-up never dumps the user into a broken-looking app. */
+const BootGate: React.FC<{ onReady: () => void }> = ({ onReady }) => {
   const [fading, setFading] = useState(false);
+  const [cold, setCold] = useState(false);
+  const [slow, setSlow] = useState(false);
+  const startRef = useRef(Date.now());
 
   useEffect(() => {
-    const t1 = setTimeout(() => setFading(true), SPLASH_DURATION);
-    const t2 = setTimeout(onDone, SPLASH_DURATION + FADE_OUT);
-    return () => { clearTimeout(t1); clearTimeout(t2); };
-  }, [onDone]);
+    let active = true;
+    const coldTimer = setTimeout(() => { if (active) setCold(true); }, COLD_AFTER);
+    const slowTimer = setTimeout(() => { if (active) setSlow(true); }, SLOW_AFTER);
+
+    async function poll() {
+      while (active) {
+        const ok = await apiClient.ping();
+        if (!active) return;
+        if (ok) {
+          // Hold the brand for a graceful minimum, then fade into the app.
+          const wait = Math.max(0, MIN_SPLASH - (Date.now() - startRef.current));
+          setTimeout(() => {
+            if (!active) return;
+            setFading(true);
+            setTimeout(() => { if (active) onReady(); }, FADE_OUT);
+          }, wait);
+          return;
+        }
+        await new Promise((r) => setTimeout(r, POLL_EVERY));
+      }
+    }
+    poll();
+
+    return () => { active = false; clearTimeout(coldTimer); clearTimeout(slowTimer); };
+  }, [onReady]);
 
   return (
     <div
@@ -81,7 +113,24 @@ const SplashScreen: React.FC<{ onDone: () => void }> = ({ onDone }) => {
       <div style={splashStyles.inner}>
         <div style={splashStyles.mark}>T</div>
         <span style={splashStyles.name}>Tesseract</span>
-        <span style={splashStyles.sub}>Your AI Chief of Staff</span>
+        {!cold ? (
+          <span style={splashStyles.sub}>Your AI Chief of Staff</span>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10, marginTop: 2 }}>
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, color: 'var(--text-2)', fontSize: 14, fontFamily: 'var(--font-sans)' }}>
+              <Loader2 size={15} className="spin" /> Waking up your assistant…
+            </span>
+            <span style={{ ...splashStyles.sub, maxWidth: 340, textAlign: 'center', lineHeight: 1.55, marginTop: 0 }}>
+              This demo runs on free hosting that goes to sleep when idle, so the first
+              load can take up to a minute. Thanks for your patience — no need to refresh.
+            </span>
+            {slow && (
+              <span style={{ fontSize: 12.5, color: 'var(--amber)', fontFamily: 'var(--font-sans)' }}>
+                Still starting up… hang tight, almost there.
+              </span>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );
@@ -89,26 +138,29 @@ const SplashScreen: React.FC<{ onDone: () => void }> = ({ onDone }) => {
 
 /* ── App ────────────────────────────────────────────────────────────────────── */
 export const App: React.FC = () => {
-  const [showSplash, setShowSplash] = useState(true);
+  const [ready, setReady] = useState(false);
 
   return (
     <AppProviders>
-      {showSplash && <SplashScreen onDone={() => setShowSplash(false)} />}
-      <BrowserRouter>
-        <Shell>
-          <Routes>
-            <Route path="/" element={<HomeView />} />
-            <Route path="/landing" element={<LandingView />} />
-            <Route path="/meetings" element={<MeetingsView />} />
-            <Route path="/decisions" element={<DecisionsView />} />
-            <Route path="/tasks" element={<ActionItemsView />} />
-            <Route path="/ask" element={<AskView />} />
-            <Route path="/map" element={<MapView />} />
-            <Route path="/add" element={<AddMeetingView />} />
-            <Route path="/settings" element={<SettingsView />} />
-          </Routes>
-        </Shell>
-      </BrowserRouter>
+      {!ready ? (
+        <BootGate onReady={() => setReady(true)} />
+      ) : (
+        <BrowserRouter>
+          <Shell>
+            <Routes>
+              <Route path="/" element={<HomeView />} />
+              <Route path="/landing" element={<LandingView />} />
+              <Route path="/meetings" element={<MeetingsView />} />
+              <Route path="/decisions" element={<DecisionsView />} />
+              <Route path="/tasks" element={<ActionItemsView />} />
+              <Route path="/ask" element={<AskView />} />
+              <Route path="/map" element={<MapView />} />
+              <Route path="/add" element={<AddMeetingView />} />
+              <Route path="/settings" element={<SettingsView />} />
+            </Routes>
+          </Shell>
+        </BrowserRouter>
+      )}
     </AppProviders>
   );
 };
